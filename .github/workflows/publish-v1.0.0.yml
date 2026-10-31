@@ -48,9 +48,8 @@ jobs:
           Expand-Archive -LiteralPath $archivePath -DestinationPath $extractRoot -Force
           $sourceRoot = Join-Path $extractRoot 'Speed-Test'
           if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'main.go') -PathType Leaf)) { throw 'Source archive did not contain the Go application.' }
-          Get-ChildItem -LiteralPath $sourceRoot -Force | ForEach-Object {
-            Copy-Item -LiteralPath $_.FullName -Destination $PWD -Recurse -Force
-          }
+          robocopy $sourceRoot $PWD /E /NFL /NDL /NJH /NJS /NC /NS
+          if ($LASTEXITCODE -ge 8) { throw "Source copy failed with robocopy exit code $LASTEXITCODE." }
           [System.IO.File]::WriteAllText((Join-Path $PWD 'LICENSE'), $fullLicense, [System.Text.UTF8Encoding]::new($false))
           if (Test-Path -LiteralPath '.github/workflows/publish-v1.0.0.yml') {
             Remove-Item -LiteralPath '.github/workflows/publish-v1.0.0.yml' -Force
@@ -62,51 +61,54 @@ jobs:
           $releaseWorkflow = '.github/workflows/release.yml'
           if (Test-Path -LiteralPath $releaseWorkflow) {
             $releaseText = [System.IO.File]::ReadAllText((Join-Path $PWD $releaseWorkflow))
-            $releaseText = $releaseText.Replace("  verify:`n", "  verify:`n    if: github.ref_name != 'v1.0.0'`n")
-            $releaseText = $releaseText.Replace("  release-windows:`n", "  release-windows:`n    if: github.ref_name != 'v1.0.0'`n")
+            $releaseText = [regex]::Replace($releaseText, '(?m)^  verify:\r?$', "  verify:`n    if: github.ref_name != 'v1.0.0'")
+            $releaseText = [regex]::Replace($releaseText, '(?m)^  release-windows:\r?$', "  release-windows:`n    if: github.ref_name != 'v1.0.0'")
             [System.IO.File]::WriteAllText((Join-Path $PWD $releaseWorkflow), $releaseText, [System.Text.UTF8Encoding]::new($false))
           }
           $readmePath = Join-Path $PWD 'README.md'
           $readme = [System.IO.File]::ReadAllText($readmePath)
-          $readme = $readme -replace '(?s)## Project status.*?\n---', "## Project status`n`nVersion 1.0.0 is the initial public release. Automated Go tests, race checks, static checks, the Windows build, and a Windows-runner launcher smoke test are run by GitHub Actions. A physical Windows-to-Windows LAN test has not yet been independently confirmed; validate your own network before production use.`n`n---"
+          $replacement = "## Project status`n`nVersion 1.0.0 is the initial public release. Automated Go tests, race checks, static checks, the Windows build, and a Windows-runner launcher smoke test are run by GitHub Actions. A physical Windows-to-Windows LAN test has not yet been independently confirmed; validate your own network before production use.`n`n---"
+          $readme = [regex]::Replace($readme, '(?s)## Project status.*?\n---', $replacement)
           [System.IO.File]::WriteAllText($readmePath, $readme, [System.Text.UTF8Encoding]::new($false))
-          @'
-# Test status — v1.0.0
-
-| Check | Result |
-|---|---|
-| Go unit tests | PASS in GitHub Actions |
-| Go vet | PASS in GitHub Actions |
-| Go race detector | PASS in GitHub Actions |
-| Browser JavaScript syntax | PASS in GitHub Actions |
-| Windows x64 build | PASS in GitHub Actions |
-| PowerShell launcher and local HTTP smoke test | RUN in GitHub Windows runner |
-| Actual Windows-to-Windows LAN test on separate physical PCs | PENDING independent user validation |
-
-## Measurement limits
-
-The browser edition measures HTTP/TCP throughput and HTTP round-trip latency. It does not measure raw ICMP ping or UDP packet loss. Browser-based measurements include browser and application overhead.
-
-## Release note
-
-This is the initial public v1.0.0 release. Automated CI and Windows-runner checks are performed, but a separate physical two-PC LAN test has not been independently confirmed. Do not treat the software as a calibrated network certification instrument.
-'@ | Set-Content -LiteralPath 'TEST-STATUS.md' -Encoding utf8
-          @'
-# Changelog
-
-## 1.0.0 — Initial public release
-
-- Self-hosted Windows host with browser-only clients.
-- HTTP/TCP download and upload throughput tests.
-- HTTP round-trip latency and jitter estimates.
-- Live throughput graph.
-- Host-side JSONL test history and loopback-only admin dashboard.
-- Optional client JSON and CSV report downloads.
-- Windows BAT launcher with configurable host port.
-- GitHub latest-release update check with SHA-256 verification.
-- Offline startup from bundled executable or previously installed version.
-- Original author attribution: Ajay Raikvar.
-'@ | Set-Content -LiteralPath 'CHANGELOG.md' -Encoding utf8
+          $testStatus = @(
+            "# Test status — v1.0.0",
+            "",
+            "| Check | Result |",
+            "|---|---|",
+            "| Go unit tests | PASS in GitHub Actions |",
+            "| Go vet | PASS in GitHub Actions |",
+            "| Go race detector | PASS in GitHub Actions |",
+            "| Browser JavaScript syntax | PASS in GitHub Actions |",
+            "| Windows x64 build | PASS in GitHub Actions |",
+            "| PowerShell launcher and local HTTP smoke test | RUN in GitHub Windows runner |",
+            "| Actual Windows-to-Windows LAN test on separate physical PCs | PENDING independent user validation |",
+            "",
+            "## Measurement limits",
+            "",
+            "The browser edition measures HTTP/TCP throughput and HTTP round-trip latency. It does not measure raw ICMP ping or UDP packet loss. Browser-based measurements include browser and application overhead.",
+            "",
+            "## Release note",
+            "",
+            "This is the initial public v1.0.0 release. Automated CI and Windows-runner checks are performed, but a separate physical two-PC LAN test has not been independently confirmed. Do not treat the software as a calibrated network certification instrument."
+          )
+          $testStatus | Set-Content -LiteralPath 'TEST-STATUS.md' -Encoding utf8
+          $changelog = @(
+            "# Changelog",
+            "",
+            "## 1.0.0 — Initial public release",
+            "",
+            "- Self-hosted Windows host with browser-only clients.",
+            "- HTTP/TCP download and upload throughput tests.",
+            "- HTTP round-trip latency and jitter estimates.",
+            "- Live throughput graph.",
+            "- Host-side JSONL test history and loopback-only admin dashboard.",
+            "- Optional client JSON and CSV report downloads.",
+            "- Windows BAT launcher with configurable host port.",
+            "- GitHub latest-release update check with SHA-256 verification.",
+            "- Offline startup from bundled executable or previously installed version.",
+            "- Original author attribution: Ajay Raikvar."
+          )
+          $changelog | Set-Content -LiteralPath 'CHANGELOG.md' -Encoding utf8
           New-Item -ItemType Directory -Force -Path 'dist' | Out-Null
 
       - name: Run source tests and static checks
