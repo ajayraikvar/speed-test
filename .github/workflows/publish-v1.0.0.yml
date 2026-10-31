@@ -48,24 +48,12 @@ jobs:
           Expand-Archive -LiteralPath $archivePath -DestinationPath $extractRoot -Force
           $sourceRoot = Join-Path $extractRoot 'Speed-Test'
           if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'main.go') -PathType Leaf)) { throw 'Source archive did not contain the Go application.' }
-          robocopy $sourceRoot $PWD /E /NFL /NDL /NJH /NJS /NC /NS
+          $excludedGithub = Join-Path $sourceRoot '.github'
+          robocopy $sourceRoot $PWD /E /XD $excludedGithub /NFL /NDL /NJH /NJS /NC /NS
           if ($LASTEXITCODE -ge 8) { throw "Source copy failed with robocopy exit code $LASTEXITCODE." }
           $LASTEXITCODE = 0
           [System.IO.File]::WriteAllText((Join-Path $PWD 'LICENSE'), $fullLicense, [System.Text.UTF8Encoding]::new($false))
-          if (Test-Path -LiteralPath '.github/workflows/publish-v1.0.0.yml') {
-            Remove-Item -LiteralPath '.github/workflows/publish-v1.0.0.yml' -Force
-          }
-          if (Test-Path -LiteralPath 'release-staging') {
-            Remove-Item -LiteralPath 'release-staging' -Recurse -Force
-          }
           Set-Content -LiteralPath 'VERSION' -Value '1.0.0' -Encoding ascii
-          $releaseWorkflow = '.github/workflows/release.yml'
-          if (Test-Path -LiteralPath $releaseWorkflow) {
-            $releaseText = [System.IO.File]::ReadAllText((Join-Path $PWD $releaseWorkflow))
-            $releaseText = [regex]::Replace($releaseText, '(?m)^  verify:\r?$', "  verify:`n    if: github.ref_name != 'v1.0.0'")
-            $releaseText = [regex]::Replace($releaseText, '(?m)^  release-windows:\r?$', "  release-windows:`n    if: github.ref_name != 'v1.0.0'")
-            [System.IO.File]::WriteAllText((Join-Path $PWD $releaseWorkflow), $releaseText, [System.Text.UTF8Encoding]::new($false))
-          }
           $readmePath = Join-Path $PWD 'README.md'
           $readme = [System.IO.File]::ReadAllText($readmePath)
           $replacement = "## Project status`n`nVersion 1.0.0 is the initial public release. Automated Go tests, race checks, static checks, the Windows build, and a Windows-runner launcher smoke test are run by GitHub Actions. A physical Windows-to-Windows LAN test has not yet been independently confirmed; validate your own network before production use.`n`n---"
@@ -186,7 +174,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: v1.0.0
-          target_commitish: ${{ steps.commit.outputs.sha }}
+          target_commitish: main
           name: Speed Test v1.0.0
           draft: false
           prerelease: false
