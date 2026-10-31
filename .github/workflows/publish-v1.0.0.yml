@@ -50,6 +50,7 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'main.go') -PathType Leaf)) { throw 'Source archive did not contain the Go application.' }
           robocopy $sourceRoot $PWD /E /NFL /NDL /NJH /NJS /NC /NS
           if ($LASTEXITCODE -ge 8) { throw "Source copy failed with robocopy exit code $LASTEXITCODE." }
+          $LASTEXITCODE = 0
           [System.IO.File]::WriteAllText((Join-Path $PWD 'LICENSE'), $fullLicense, [System.Text.UTF8Encoding]::new($false))
           if (Test-Path -LiteralPath '.github/workflows/publish-v1.0.0.yml') {
             Remove-Item -LiteralPath '.github/workflows/publish-v1.0.0.yml' -Force
