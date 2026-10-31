@@ -1,0 +1,8 @@
+/dist/
+/build/
+*.exe
+*.zip
+*.log
+*.jsonl
+.DS_Store
+Thumbs.db

@@ -1,0 +1,87 @@
+<!-- Copyright (C) 2026 Ajay Raikvar. SPDX-License-Identifier: AGPL-3.0-or-later. See ../LICENSE and ../NOTICE. -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="description" content="Self-hosted network performance testing for download, upload, latency and jitter.">
+  <title>Speed Test — by Ajay Raikvar</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Speed Test home">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M5 22.5 11.5 16l4.2 4.2L27 9"/><path d="M19.5 9H27v7.5"/></svg></span>
+        <span><strong>Speed<span>Test</span></strong><small>NETWORK PERFORMANCE</small></span>
+      </a>
+      <div class="top-status"><span class="status-dot"></span><span id="connectionStatus">Connecting to host</span></div>
+    </header>
+
+    <main>
+      <div id="updateBanner" class="update-banner" hidden role="status" aria-live="polite"></div>
+      <section class="intro">
+        <div class="eyebrow"><span class="eyebrow-line"></span> SELF-HOSTED NETWORK PERFORMANCE</div>
+        <h1>How fast is your <span>network?</span></h1>
+        <p>Measure real data transfer between this browser and the host PC. Self-hosted, private by design, and no client installation required.</p>
+      </section>
+
+      <section class="host-card panel" aria-label="Host information">
+        <div class="host-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M7 8h10"/></svg></div>
+        <div class="host-copy"><span class="muted-label">CONNECTED TO HOST</span><strong id="hostName">Detecting host…</strong><small id="hostAddress">Reading local server information</small></div>
+        <div class="host-pill"><span class="status-dot"></span> HOST ONLINE</div>
+      </section>
+
+      <section class="test-layout">
+        <div class="main-test panel">
+          <div class="section-heading">
+            <div><span class="muted-label">SPEED TEST</span><h2>Connection performance</h2></div>
+            <div class="duration-control" aria-label="Test duration">
+              <span>Duration</span>
+              <select id="durationSelect" aria-label="Test duration">
+                <option value="5">5 sec</option>
+                <option value="10" selected>10 sec</option>
+                <option value="15">15 sec</option>
+                <option value="20">20 sec</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="gauge-wrap">
+            <div class="gauge-ring" id="gaugeRing">
+              <div class="gauge-inner">
+                <span class="gauge-caption" id="gaugeCaption">READY TO TEST</span>
+                <strong id="liveSpeed">—</strong>
+                <span class="gauge-unit" id="liveUnit">Mbps</span>
+                <span class="gauge-direction" id="liveDirection">Your Network throughput</span>
+              </div>
+            </div>
+          </div>
+          <div class="progress-row"><span id="stageLabel">Ready when you are</span><span id="progressLabel">0%</span></div>
+          <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+          <div class="chart-wrap"><div class="chart-title"><span>LIVE THROUGHPUT</span><span id="chartScale">Mbps</span></div><canvas id="speedChart" aria-label="Live throughput chart"></canvas></div>
+          <div class="actions"><button id="startButton" class="primary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg><span>Start speed test</span></button><button id="stopButton" class="secondary-button" disabled>Stop test</button></div>
+          <p class="privacy-note"><span class="lock-icon">▣</span> Test payloads stay in memory. The host stores test summaries with client IP and browser details.</p>
+        </div>
+
+        <aside class="results-column">
+          <div class="results-card panel">
+            <div class="card-heading"><div><span class="muted-label">TEST RESULTS</span><h2>Performance summary</h2></div><span class="result-icon">↗</span></div>
+            <div class="metric metric-download"><div class="metric-top"><span class="metric-symbol down">↓</span><span>DOWNLOAD</span></div><div class="metric-value"><strong id="downloadResult">—</strong><span>Mbps</span></div><div class="metric-foot" id="downloadMBps">Host → Client browser</div></div>
+            <div class="metric metric-upload"><div class="metric-top"><span class="metric-symbol up">↑</span><span>UPLOAD</span></div><div class="metric-value"><strong id="uploadResult">—</strong><span>Mbps</span></div><div class="metric-foot" id="uploadMBps">Client browser → Host</div></div>
+            <div class="small-metrics"><div><span>LATENCY</span><strong id="latencyResult">— <small>ms</small></strong></div><div><span>JITTER</span><strong id="jitterResult">— <small>ms</small></strong></div></div>
+            <div class="result-time" id="resultTime">No test completed yet</div>
+            <div class="report-actions" id="reportActions" hidden><button type="button" id="downloadJsonReport">Download JSON report</button><button type="button" id="downloadCsvReport">Download CSV report</button></div>
+          </div>
+          <div class="how-card panel"><div class="how-title"><span class="info-symbol">i</span><strong>About this test</strong></div><p>Download and upload are measured between your browser and the host over your LAN. Latency and jitter use repeated HTTP round trips, not ICMP ping.</p><p class="note-small">For the most accurate result, use wired Ethernet on both PCs and close other heavy network transfers.</p></div>
+        </aside>
+      </section>
+    </main>
+
+    <footer><span>Speed Test <span class="footer-version" id="appVersion">v1.0.0</span><br><small>Original developer: Ajay Raikvar · © 2026 · AGPL-3.0-or-later · No warranty</small></span><span>Developed by <a href="https://www.ajayraikvar.com" target="_blank" rel="noopener noreferrer">www.ajayraikvar.com</a><br><small><a href="https://www.gnu.org/licenses/agpl-3.0.html" target="_blank" rel="noopener noreferrer">License</a> · <a href="https://github.com/ajayraikvar/speed-test" target="_blank" rel="noopener noreferrer">Source code</a></small></span></footer>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

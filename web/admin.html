@@ -1,0 +1,22 @@
+<!-- Copyright (C) 2026 Ajay Raikvar. SPDX-License-Identifier: AGPL-3.0-or-later. See ../LICENSE and ../NOTICE. -->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1220">
+  <title>Speed Test — Host Logs</title>
+  <link rel="stylesheet" href="/admin.css">
+  <script src="/admin.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header><div><p class="eyebrow">HOST-ONLY DASHBOARD</p><h1>Speed Test <span>Logs</span></h1><p class="sub">Completed client test summaries stored on this host.</p></div><a href="/">Open test page</a></header>
+    <section class="summary"><div><span>Total loaded</span><strong id="totalCount">—</strong></div><div><span>Latest test</span><strong id="latestTime">—</strong></div><div><span>Data file</span><strong>tests.jsonl</strong></div></section>
+    <section class="toolbar"><button id="refreshButton">Refresh logs</button><a href="/api/admin/logs?format=csv">Export CSV</a><a href="/api/admin/logs?download=1">Download JSON</a></section>
+    <div id="status" class="status">Loading host logs…</div>
+    <div class="table-wrap"><table><thead><tr><th>Time (UTC)</th><th>Client IP</th><th>Download</th><th>Upload</th><th>Latency</th><th>Jitter</th><th>Duration</th><th>Test ID</th></tr></thead><tbody id="logRows"><tr><td colspan="8">Loading…</td></tr></tbody></table></div>
+    <footer>© 2026 Ajay Raikvar · Developed by <a href="https://www.ajayraikvar.com">www.ajayraikvar.com</a></footer>
+  </main>
+</body>
+</html>

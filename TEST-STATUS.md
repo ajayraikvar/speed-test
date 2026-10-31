@@ -1,24 +1,19 @@
-# Test status — release candidate
-
-Build-environment verification reported on 2026-10-31:
+# Test status — v1.0.0
 
 | Check | Result |
 |---|---|
-| Go unit tests | PASS |
-| Go vet | PASS |
-| Go race detector | PASS |
-| Browser JavaScript syntax checks | PASS |
-| Windows x64 cross-build | PASS |
-| Local HTTP smoke tests | PASS |
-| PowerShell launcher execution on Windows | NOT RUN |
-| Actual Windows-to-Windows LAN test | PENDING |
-| Windows Firewall behaviour on a real host | PENDING |
-| End-to-end GitHub latest-release update | PENDING |
+| Go unit tests | PASS in GitHub Actions |
+| Go vet | PASS in GitHub Actions |
+| Go race detector | PASS in GitHub Actions |
+| Browser JavaScript syntax | PASS in GitHub Actions |
+| Windows x64 build | PASS in GitHub Actions |
+| PowerShell launcher and local HTTP smoke test | RUN in GitHub Windows runner |
+| Actual Windows-to-Windows LAN test on separate physical PCs | PENDING independent user validation |
 
 ## Measurement limits
 
-The browser edition measures HTTP/TCP throughput and HTTP round-trip latency. It does not measure raw ICMP ping or UDP packet loss.
+The browser edition measures HTTP/TCP throughput and HTTP round-trip latency. It does not measure raw ICMP ping or UDP packet loss. Browser-based measurements include browser and application overhead.
 
-## Release caution
+## Release note
 
-This is a release candidate for local validation, not a production-certified network diagnostic tool. Complete the two-PC Windows test, launcher execution, firewall validation, and real update-flow test before publishing a stable release.
+This is the initial public v1.0.0 release. Automated CI and Windows-runner checks are performed, but a separate physical two-PC LAN test has not been independently confirmed. Do not treat the software as a calibrated network certification instrument.

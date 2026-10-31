@@ -1,14 +1,20 @@
 Speed Test
 Copyright (C) 2026 Ajay Raikvar
-
-Original project author and upstream maintainer: Ajay Raikvar
+Original project and upstream maintainer: Ajay Raikvar
 Official website: https://www.ajayraikvar.com
 Official source repository: https://github.com/ajayraikvar/speed-test
 
-This software is licensed under GNU Affero General Public License version 3 or (at your option) any later version.
+This software is licensed under GNU AGPL version 3 or (at your option) any later version.
+Preserve this notice and the license notices when redistributing source or modified
+versions. Modified versions must be clearly identified as modified and must not be
+presented as official upstream releases unless authorized by the upstream maintainer.
 
-Preserve copyright, license, and attribution notices when redistributing source or modified versions. Modified versions must be clearly identified and must not be presented as official upstream releases unless authorized by the upstream maintainer.
+Contributors retain copyright in their own contributions unless they separately agree
+otherwise. Contributor names should be added to the relevant source history and project
+credits.
 
-Contributors retain copyright in their own contributions unless they separately agree otherwise. Contributor names should be acknowledged in the relevant source history and project credits.
-
-The AGPL license applies to the copyrightable software. It does not grant rights to use Ajay Raikvar's personal name, website identity, or branding to imply that an unofficial fork is an official upstream release.
+Branding notice:
+No trademark or endorsement rights are granted for the Ajay Raikvar name, personal
+branding, website identity, or any project logo. The AGPL license applies to the
+copyrightable software; it does not grant rights to imply that an unofficial fork is
+an official Ajay Raikvar release.
