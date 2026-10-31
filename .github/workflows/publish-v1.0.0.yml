@@ -35,9 +35,13 @@ jobs:
           $parts = @(Get-ChildItem -LiteralPath 'release-staging' -Filter 'part-*.txt' -File | Sort-Object Name)
           if ($parts.Count -ne 10) { throw "Expected 10 source bundle chunks; found $($parts.Count)." }
           $segments = @()
-          foreach ($part in $parts) { $segments += [System.IO.File]::ReadAllText($part.FullName).Trim() }
+          foreach ($part in $parts) { $segments += [regex]::Replace([System.IO.File]::ReadAllText($part.FullName), '\s', '') }
           $encoded = [string]::Join('', $segments)
+          if ($encoded.Length -ne 48968) { throw "Unexpected source archive base64 length: $($encoded.Length)." }
           $archiveBytes = [Convert]::FromBase64String($encoded)
+          $sha = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($archiveBytes)).Replace('-', '').ToLowerInvariant()
+          if ($sha -ne '028d9a4221bcb5328b520de53bb839287c6e11baa3f99f4acdb705eed01c0778') { throw "Source archive SHA256 mismatch: $sha" }
+
           $archivePath = Join-Path $env:RUNNER_TEMP 'speed-test-source.zip'
           [System.IO.File]::WriteAllBytes($archivePath, $archiveBytes)
           $extractRoot = Join-Path $env:RUNNER_TEMP 'speed-test-source'
