@@ -5,8 +5,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0a1120">
-  <meta name="description" content="Speed Test v2.0 — self-hosted network performance analyzer by Ajay Raikvar.">
-  <title>Speed Test v2.0 — by Ajay Raikvar</title>
+  <meta name="description" content="Speed Test v2.1.1 — self-hosted network performance analyzer by Ajay Raikvar.">
+  <title>Speed Test v2.1.1 — by Ajay Raikvar</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
 </head>
@@ -52,11 +52,11 @@
             </div>
           </div>
 
-          <div class="gauge-wrap"><div class="gauge-ring" id="gaugeRing"><div class="gauge-inner"><span class="gauge-caption" id="gaugeCaption">READY TO TEST</span><strong id="liveSpeed">—</strong><span class="gauge-unit" id="liveUnit">Mbps</span><span class="gauge-direction" id="liveDirection">Average throughput</span></div></div></div>
+          <div class="gauge-wrap"><div class="gauge-ring" id="gaugeRing"><div class="gauge-inner"><span class="gauge-caption" id="gaugeCaption">READY TO TEST</span><strong id="liveSpeed">—</strong><span class="gauge-unit" id="liveUnit">Mbps</span><span class="gauge-direction" id="liveDirection">1-second rolling average</span></div></div></div>
+          <div class="actions"><button id="startButton" class="primary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg><span>Start speed test</span></button><button id="stopButton" class="secondary-button" disabled>Stop test</button></div>
           <div class="progress-row"><span id="stageLabel">Ready when you are</span><span id="progressLabel">0%</span></div>
           <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
           <div class="chart-wrap"><div class="chart-title"><span>LIVE THROUGHPUT</span><span><i class="legend-down"></i> DOWNLOAD <i class="legend-up"></i> UPLOAD <b id="chartScale">Mbps</b></span></div><canvas id="speedChart" aria-label="Live download and upload throughput chart"></canvas></div>
-          <div class="actions"><button id="startButton" class="primary-button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 5 11 7-11 7z"/></svg><span>Start speed test</span></button><button id="stopButton" class="secondary-button" disabled>Stop test</button></div>
           <p class="privacy-note"><span class="lock-icon">▣</span> Test payloads stay in memory. Host logs store result summaries and client connection details only.</p>
         </div>
 
@@ -80,7 +80,7 @@
       <section class="recent-card panel"><div class="card-heading"><div><span class="muted-label">THIS BROWSER</span><h2>Recent local reports</h2></div><span class="muted-small">Saved only in this browser</span></div><div id="recentTests" class="recent-list"><span class="empty-state">Completed tests will appear here.</span></div></section>
     </main>
 
-    <footer><span>Speed Test <span class="footer-version" id="appVersion">v2.0.0</span><br><small>Original developer: Ajay Raikvar · © 2026 · Redistribution and modification permitted under AGPL-3.0-or-later · No warranty</small></span><span>Developed by <a href="https://www.ajayraikvar.com" target="_blank" rel="noopener noreferrer">www.ajayraikvar.com</a><br><small><a href="/LICENSE" target="_blank" rel="noopener noreferrer">License</a> · <a href="/NOTICE" target="_blank" rel="noopener noreferrer">Notices</a> · <a href="/source.zip">Download source for this version</a> · <a href="/admin" target="_blank" rel="noopener noreferrer">Host dashboard</a></small></span></footer>
+    <footer><span>Speed Test <span class="footer-version" id="appVersion">v2.1.1</span><br><small>Original developer: Ajay Raikvar · © 2026 · Redistribution and modification permitted under AGPL-3.0-or-later · No warranty</small></span><span>Developed by <a href="https://www.ajayraikvar.com" target="_blank" rel="noopener noreferrer">www.ajayraikvar.com</a><br><small><a href="/LICENSE" target="_blank" rel="noopener noreferrer">License</a> · <a href="/NOTICE" target="_blank" rel="noopener noreferrer">Notices</a> · <a href="/source.zip">Download source for this version</a> · <a href="/admin" target="_blank" rel="noopener noreferrer">Host dashboard</a></small></span></footer>
   </div>
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>

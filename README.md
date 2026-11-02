@@ -1,4 +1,4 @@
-# Speed Test v2.1.0
+# Speed Test v2.1.1
 
 **A self-hosted network performance analyzer for Windows.**
 
@@ -8,7 +8,7 @@ One Windows PC runs the host. Other PCs use a modern browser; no client applicat
 - **Website:** https://www.ajayraikvar.com
 - **Official repository:** https://github.com/ajayraikvar/speed-test
 - **License:** GNU Affero General Public License v3 or later (`AGPL-3.0-or-later`)
-- **Version:** 2.1.0
+- **Version:** 2.1.1
 
 ## Quick start — Windows host
 
@@ -74,7 +74,14 @@ Only the host PC runs the BAT file and executable. Client PCs use a browser only
 - Modernized the main Speed Test screen and host dashboard with a cleaner light theme and responsive layouts.
 - Improved visual hierarchy for test controls, the live gauge, throughput chart, result cards, diagnostics, client comparison, and history.
 - Added clearer keyboard focus states, reduced-motion handling, and responsive layouts for smaller screens.
-- The v2.1.0 update is a presentation refresh; it does not change the HTTP/TCP measurement method or add admin login/authentication.
+- The v2.1.0 and v2.1.1 updates improve presentation and usability; they do not change the HTTP/TCP measurement method or add admin login/authentication.
+
+## v2.1.1 usability and live display
+
+- Moved the Start/Stop controls directly below the live meter so the primary action is easier to reach without scrolling.
+- Reduced the vertical height of the header, introduction, connection cards, meter and chart. Short laptop viewports use a compact layout to prioritize the Start button.
+- The live gauge and chart use a 1-second rolling display average to make moment-to-moment changes easier to read. Test transfer byte counts, final throughput averages, peaks, latency, and saved reports continue to use the underlying measurements.
+- In bidirectional mode the gauge shows the combined 1-second average of download and upload.
 
 ## Measurement scope and limitations
 

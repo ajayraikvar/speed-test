@@ -1,0 +1,127 @@
+name: Publish Speed Test v2.1.1
+
+on:
+  push:
+    branches:
+      - release/v2.1.1
+    paths:
+      - '.github/workflows/publish-v2.1.1.yml'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'VERSION'
+      - 'TEST-STATUS.md'
+      - 'Start-Speed-Test.ps1'
+      - 'web/index.html'
+      - 'web/style.css'
+      - 'web/app.js'
+      - 'web/admin.html'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: speed-test-v2-1-1-publish
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          ref: release/v2.1.1
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Go unit tests
+        run: go test ./...
+      - name: Go vet
+        run: go vet ./...
+      - name: Go race detector
+        run: go test -race ./...
+      - name: Browser JavaScript syntax and UI source checks
+        shell: bash
+        run: |
+          node --check web/app.js
+          node --check web/admin.js
+          node <<'NODE'
+          const fs = require('node:fs');
+          const html = fs.readFileSync('web/index.html', 'utf8');
+          const js = fs.readFileSync('web/app.js', 'utf8');
+          const css = fs.readFileSync('web/style.css', 'utf8');
+          const required = ['startButton','stopButton','gaugeRing','liveSpeed','liveDirection','progressFill','progressLabel','stageLabel','speedChart'];
+          for (const id of required) {
+            if (!html.includes('id="' + id + '"')) throw new Error('Missing DOM id: ' + id);
+            if (!js.includes("'" + id + "'")) throw new Error('App script no longer references id: ' + id);
+          }
+          const gauge = html.indexOf('id="gaugeRing"');
+          const start = html.indexOf('id="startButton"');
+          const progress = html.indexOf('id="progressFill"');
+          if (!(gauge >= 0 && start > gauge && progress > start)) throw new Error('Start action must remain directly after the gauge and before progress details.');
+          let depth = 0;
+          for (const ch of css) { if (ch === '{') depth++; if (ch === '}') depth--; if (depth < 0) throw new Error('CSS closing brace without opening brace.'); }
+          if (depth !== 0) throw new Error('Unbalanced CSS braces: ' + depth);
+          if (!js.includes('function rollingAverage(') || !js.includes("state.mode==='bidirectional'?downloadAvg+uploadAvg")) throw new Error('One-second gauge smoothing is missing.');
+          console.log('UI source checks passed.');
+          NODE
+
+  package-and-publish:
+    needs: verify
+    runs-on: windows-latest
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+        with:
+          ref: release/v2.1.1
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build Windows and source packages
+        shell: pwsh
+        run: |
+          ./scripts/build-package.ps1 -Version '2.1.1'
+          if ($LASTEXITCODE -ne 0) { throw 'Release package build failed.' }
+      - name: Publish GitHub Release v2.1.1
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v2.1.1
+          target_commitish: release/v2.1.1
+          name: Speed Test v2.1.1
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            Speed Test v2.1.1 by Ajay Raikvar.
+
+            **What's improved:** Start/Stop controls now sit directly below the live gauge; compact spacing helps keep the primary action visible on shorter laptop screens. The live gauge and chart display a one-second rolling average. In bidirectional mode, the gauge shows combined download and upload throughput.
+
+            **Measurement integrity:** Only the live presentation is smoothed. Transfer byte counts, final average and peak calculations, latency/jitter, and saved reports continue to use the underlying measurements.
+
+            **Windows x64:** Download `Speed-Test-Windows-x64.zip`, extract it, and run `Start-Speed-Test.bat`. Other LAN devices connect through a modern browser.
+
+            **Source:** `Speed-Test-v2.1.1-Source.zip` contains the corresponding source tree.
+
+            **Integrity:** Verify both ZIP packages using `SHA256SUMS.txt`.
+
+            **Validation:** The workflow runs Go unit tests, vet, the race detector, JavaScript syntax and UI source checks, plus a Windows x64 package build. Actual browser visual/end-to-end checks and a physical Windows-to-Windows LAN test still require independent validation.
+
+            **Security notice:** This UI update does not add Admin login or authentication. Keep the host on a trusted private LAN, restrict its port with Windows Firewall, and do not expose it to the public internet or configure router port forwarding.
+
+            © 2026 Ajay Raikvar — https://www.ajayraikvar.com
+          files: |
+            dist/v2.1.1/Speed-Test-Windows-x64.zip
+            dist/v2.1.1/Speed-Test-v2.1.1-Source.zip
+            dist/v2.1.1/SHA256SUMS.txt

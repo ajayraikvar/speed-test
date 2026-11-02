@@ -102,7 +102,7 @@ function Install-Release([object]$Release) {
 }
 
 $ErrorActionPreference = 'Stop'
-Write-Host "Speed Test v2.1 launcher · Port $Port · Max clients $MaxClients" -ForegroundColor Cyan
+Write-Host "Speed Test v2.1.1 launcher · Port $Port · Max clients $MaxClients" -ForegroundColor Cyan
 $local = @(Get-LocalCandidates)
 $selected = if ($local.Count -gt 0) { $local[0] } else { $null }
 try {

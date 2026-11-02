@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.1 — Faster access and steadier live display
+
+- Moved Start/Stop controls directly below the live gauge and above the progress/chart details.
+- Reduced first-screen vertical spacing and added a compact layout for short desktop/laptop viewports.
+- Smoothed the live gauge and chart with a one-second rolling average; final test calculations and stored reports remain based on the original measured transfer totals.
+- Bidirectional mode now displays the combined one-second rolling throughput on the gauge.
+- Updated app, admin, launcher and release version labels to 2.1.1.
+
 ## 2.1.0 — Modern interface refresh
 
 - Redesigned the main Speed Test dashboard with clearer navigation, controls, live test visualization, result cards, and diagnostics.

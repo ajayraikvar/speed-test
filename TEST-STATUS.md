@@ -1,6 +1,6 @@
-# Test status — Speed Test v2.1.0
+# Test status — Speed Test v2.1.1
 
-v2.1.0 is a UI-focused update. Go server logic and browser JavaScript are unchanged from v2.0.0. The release workflow re-runs the Go tests, vet, race detector, JavaScript syntax checks, and Windows package build against this exact release branch. The results of that GitHub Actions run are authoritative for this release.
+v2.1.1 is a UI/usability update. The server-side measurement path and test report calculations are unchanged. The live gauge and chart display one-second rolling averages only. The release workflow runs Go tests, vet, the race detector, JavaScript syntax and DOM/CSS source checks, and the Windows x64 package build against this release branch.
 
 | Check | Result |
 |---|---|
@@ -18,9 +18,9 @@ v2.1.0 is a UI-focused update. Go server logic and browser JavaScript are unchan
 | Main/Admin DOM ID compatibility and CSS brace-balance checks | PASS (source-level checks) |
 | Browser UI visual/end-to-end compatibility on Edge/Chrome/Firefox | PENDING user validation |
 
-## v2.1 UI validation
+## v2.1.1 UI validation
 
-The redesigned CSS preserves the element IDs consumed by `app.js` and `admin.js`; the updated admin page has no duplicate IDs. Both CSS files have balanced braces. Actual browser rendering, resizing, and interaction checks in Edge, Chrome, and Firefox have not been performed in this environment and remain pending user validation.
+The updated page retains the DOM IDs consumed by `app.js` and `admin.js`. CSS brace-balance, ID compatibility, JavaScript syntax, and the source-level change to the chart/gauge smoothing are checked in the release workflow. Actual visual rendering, viewport-height checks, and interaction in Edge, Chrome, and Firefox still require browser validation.
 
 ## Smoke test coverage
 
@@ -32,4 +32,4 @@ The browser edition measures HTTP/TCP throughput and HTTP round-trip latency/jit
 
 ## Release note
 
-The v2.0.0 source tests, race checks, vet, JavaScript syntax checks, Linux build, Windows x64 cross-build, and local host API smoke test passed. A physical two-PC Windows LAN test, browser compatibility test, and PowerShell launcher execution on Windows remain unverified here. Test on your own Windows PCs before treating the results as production measurements. This is not a calibrated network certification instrument.
+The v2.0.0 baseline source tests, race checks, vet, JavaScript syntax checks, Linux build, Windows x64 cross-build, and local host API smoke test passed. The v2.1.1 workflow re-runs code and packaging checks for this release. A physical two-PC Windows LAN test, browser compatibility test, and PowerShell launcher execution on Windows remain unverified here. Test on your own Windows PCs before treating the results as production measurements. This is not a calibrated network certification instrument.
