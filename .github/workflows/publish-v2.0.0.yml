@@ -14,8 +14,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  verify-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/v2.0.0
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+      - name: Restore and verify v2.0.0 source
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, hashlib, pathlib, shutil, zipfile, io
+          root = pathlib.Path.cwd()
+          encoded = ''.join((root / 'release-staging/Speed-Test-v2.0.0-Source.base64.txt').read_text().split())
+          archive = base64.b64decode(encoded, validate=True)
+          digest = hashlib.sha256(archive).hexdigest()
+          expected = 'df224625842db4367536b4438649a5faf3f15d3e39ddcce2d4e0d4b95bf3e9bd'
+          if digest != expected: raise SystemExit(f'Source archive SHA256 mismatch: {digest}')
+          tmp = pathlib.Path('/tmp/speed-test-v2-source')
+          tmp.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile(io.BytesIO(archive)) as z: z.extractall(tmp)
+          src = tmp / 'Speed-Test-v2.0.0'
+          if not (src / 'main.go').is_file(): raise SystemExit('Source archive missing main.go')
+          for item in src.iterdir():
+              dest = root / item.name
+              if item.is_dir(): shutil.copytree(item, dest, dirs_exist_ok=True)
+              else: shutil.copy2(item, dest)
+          PY
+      - name: Go unit tests
+        run: go test ./...
+      - name: Go vet
+        run: go vet ./...
+      - name: Go race detector
+        run: go test -race ./...
+      - name: Browser JavaScript syntax
+        run: |
+          node --check web/app.js
+          node --check web/admin.js
+
   publish:
-    if: github.event.head_commit.message == 'Stage Speed Test v2.0.0 source bundle'
+    needs: verify-source
+    if: github.event.head_commit.message == 'Restage Speed Test v2.0.0 source bundle'
     runs-on: windows-latest
     steps:
       - name: Check out release branch
@@ -23,14 +67,11 @@ jobs:
         with:
           ref: release/v2.0.0
           fetch-depth: 0
-
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.23.x'
-          cache: true
-
-      - name: Restore and verify v2.0.0 source
+      - name: Restore source tree
         shell: pwsh
         run: |
           $bundlePath = Join-Path $PWD 'release-staging/Speed-Test-v2.0.0-Source.base64.txt'
@@ -46,26 +87,7 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'main.go') -PathType Leaf)) { throw 'The v2.0.0 archive is missing main.go.' }
           Get-ChildItem -LiteralPath $sourceRoot -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $PWD -Recurse -Force }
           Remove-Item -LiteralPath $bundlePath -Force
-
-      - name: Run source checks
-        shell: pwsh
-        run: |
-          go test ./...
-          if ($LASTEXITCODE -ne 0) { throw 'Go unit tests failed.' }
-          go vet ./...
-          if ($LASTEXITCODE -ne 0) { throw 'go vet failed.' }
-          $env:GOOS = 'linux'
-          $env:GOARCH = 'amd64'
-          go test -race ./...
-          if ($LASTEXITCODE -ne 0) { throw 'Go race detector failed.' }
-          Remove-Item Env:GOOS -ErrorAction SilentlyContinue
-          Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
-          node --check web/app.js
-          if ($LASTEXITCODE -ne 0) { throw 'web/app.js syntax check failed.' }
-          node --check web/admin.js
-          if ($LASTEXITCODE -ne 0) { throw 'web/admin.js syntax check failed.' }
-
-      - name: Commit v2.0.0 source tree to release branch
+      - name: Commit v2.0.0 source tree
         shell: pwsh
         run: |
           git config user.name 'github-actions[bot]'
@@ -73,13 +95,11 @@ jobs:
           git add -A
           git commit -m 'Publish Speed Test v2.0.0 source'
           git push origin HEAD:release/v2.0.0
-
       - name: Build release packages
         shell: pwsh
         run: |
           pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build-package.ps1 -Version 2.0.0
           if ($LASTEXITCODE -ne 0) { throw 'Release package build failed.' }
-
       - name: Publish GitHub Release v2.0.0
         uses: softprops/action-gh-release@v2
         env:
@@ -93,17 +113,17 @@ jobs:
           generate_release_notes: true
           body: |
             Speed Test v2.0.0 by Ajay Raikvar.
-
+            
             **Windows x64:** download `Speed-Test-Windows-x64.zip`, extract it, and run `Start-Speed-Test.bat`. Other devices on the LAN can connect through a modern browser.
-
+            
             **Source:** `Speed-Test-v2.0.0-Source.zip` contains the complete source tree.
-
+            
             **Integrity:** verify both ZIP packages using `SHA256SUMS.txt`.
-
-            **Validation:** Go tests, vet, race detector and browser JavaScript syntax checks run before packaging. Windows x64 binary packaging is performed on a Windows GitHub Actions runner. A separate physical Windows-to-Windows LAN test remains subject to user validation.
-
-            **Measurement limits:** throughput and latency are measured over HTTP/TCP; this is not raw ICMP ping or UDP packet-loss measurement. It is not a calibrated network certification instrument.
-
+            
+            **Validation:** Go tests, vet, race detector and browser JavaScript syntax checks run before packaging. Windows x64 package creation runs on a Windows GitHub Actions runner. A physical Windows-to-Windows LAN test still requires independent user validation.
+            
+            **Measurement limits:** throughput and latency are measured over HTTP/TCP. This is not raw ICMP ping or UDP packet-loss measurement, and it is not a calibrated network certification instrument.
+            
             © 2026 Ajay Raikvar — https://www.ajayraikvar.com
           files: |
             dist/v2.0.0/Speed-Test-Windows-x64.zip
