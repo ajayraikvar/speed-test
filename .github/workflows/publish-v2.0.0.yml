@@ -85,7 +85,7 @@ jobs:
           Expand-Archive -LiteralPath $archivePath -DestinationPath $extractRoot -Force
           $sourceRoot = Join-Path $extractRoot 'Speed-Test-v2.0.0'
           if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'main.go') -PathType Leaf)) { throw 'The v2.0.0 archive is missing main.go.' }
-          Get-ChildItem -LiteralPath $sourceRoot -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $PWD -Recurse -Force }
+          Get-ChildItem -LiteralPath $sourceRoot -Force | Where-Object { $_.Name -ne '.github' } | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $PWD -Recurse -Force }
           Remove-Item -LiteralPath $bundlePath -Force
       - name: Commit v2.0.0 source tree
         shell: pwsh
