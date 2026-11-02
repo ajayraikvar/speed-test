@@ -1,4 +1,4 @@
-# Speed Test v2.0.0
+# Speed Test v2.1.0
 
 **A self-hosted network performance analyzer for Windows.**
 
@@ -8,7 +8,7 @@ One Windows PC runs the host. Other PCs use a modern browser; no client applicat
 - **Website:** https://www.ajayraikvar.com
 - **Official repository:** https://github.com/ajayraikvar/speed-test
 - **License:** GNU Affero General Public License v3 or later (`AGPL-3.0-or-later`)
-- **Version:** 2.0.0
+- **Version:** 2.1.0
 
 ## Quick start — Windows host
 
@@ -42,7 +42,7 @@ Only the host PC runs the BAT file and executable. Client PCs use a browser only
 ### v1.2 history and reporting
 
 - Persistent host-side JSON Lines test history.
-- Loopback/host-interface-only administration page with connected clients, history, performance comparison, and CSV/JSON exports.
+- Host administration dashboard with connected clients, history, performance comparison, and CSV/JSON exports. Source-address checks are not user authentication; keep access restricted with the host firewall.
 - Optional client-side JSON/CSV report download and browser-local recent reports.
 - Print-to-PDF report option using the browser's print dialog.
 
@@ -69,6 +69,13 @@ Only the host PC runs the BAT file and executable. Client PCs use a browser only
 - Per-test metadata: device label, IP, browser/platform, test mode, stream count, duration, throughput, HTTP RTT, jitter, and byte counts.
 - Local corresponding-source ZIP and license notice are offered from the running host (`/source.zip`, `/LICENSE`, `/NOTICE`).
 
+## v2.1 interface refresh
+
+- Modernized the main Speed Test screen and host dashboard with a cleaner light theme and responsive layouts.
+- Improved visual hierarchy for test controls, the live gauge, throughput chart, result cards, diagnostics, client comparison, and history.
+- Added clearer keyboard focus states, reduced-motion handling, and responsive layouts for smaller screens.
+- The v2.1.0 update is a presentation refresh; it does not change the HTTP/TCP measurement method or add admin login/authentication.
+
 ## Measurement scope and limitations
 
 This is a browser-based HTTP/TCP throughput analyzer. Download and upload rates are measured over the connection between the browser and this host. Multi-stream mode opens parallel HTTP connections; bidirectional mode runs upload and download transfers at the same time.
@@ -83,7 +90,7 @@ Host data is stored outside the application/version folder:
 
 `%LOCALAPPDATA%\AjayRaikvar\SpeedTest\logs\tests.jsonl`
 
-The JSONL file is append-only from the application; it is not cleared during updates. The host dashboard is intended for the host PC only and rejects requests from other client IPs. Host logs may contain client IP addresses, device labels, browser user-agent details, and test statistics. Review them before sharing. The transfer payloads are discarded in memory and are not stored as files.
+The JSONL file is append-only from the application; it is not cleared during updates. The host dashboard and its APIs do not provide user login. Source-address checks are not a substitute for authentication or firewall rules; keep the service on a trusted private LAN and restrict its port to trusted devices. Host logs may contain client IP addresses, device labels, browser user-agent details, and test statistics. Review them before sharing. The transfer payloads are discarded in memory and are not stored as files.
 
 The client browser keeps a short list of recent reports in that browser's local storage. It can also download an individual JSON/CSV report or print it to PDF. The host keeps its own central history independently.
 
@@ -121,7 +128,7 @@ The complete build/package helper is `scripts/build-package.ps1`.
 - Intended for a trusted private LAN. Do not expose the host port to the public internet or configure router port forwarding.
 - When Windows Firewall asks, allow access only on trusted Private networks.
 - The host binds to all local interfaces so LAN clients can connect; firewall policy is the network boundary.
-- The admin page and admin APIs are restricted to loopback or the host's own detected interface addresses.
+- The admin page and APIs apply source-address checks but do not provide authenticated user accounts; do not rely on these checks instead of Windows Firewall restrictions.
 - Configure a sensible maximum client count; each browser can open multiple streams.
 - Do not use the application as an authenticated, multi-tenant internet service.
 

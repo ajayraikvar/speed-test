@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.1.0 — Modern interface refresh
+
+- Redesigned the main Speed Test dashboard with clearer navigation, controls, live test visualization, result cards, and diagnostics.
+- Refreshed the host administration dashboard with more readable KPI cards, connected-client comparisons, and test history.
+- Added responsive layouts for mobile and tablet widths, keyboard focus styling, reduced-motion handling, and improved print presentation.
+- Kept existing application JavaScript and element IDs unchanged; no changes to throughput or latency measurement behavior.
+- Clarified that admin source-address restrictions are not user authentication and that the host should remain behind trusted-LAN firewall rules.
+
 ## 2.0.0 — Complete Network Performance Analyzer
 
 - Consolidated the v1.0–v1.4 roadmap into one release.

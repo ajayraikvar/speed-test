@@ -1,21 +1,26 @@
-# Test status — Speed Test v2.0.0
+# Test status — Speed Test v2.1.0
 
-Build and automated verification performed in the current build environment:
+v2.1.0 is a UI-focused update. Go server logic and browser JavaScript are unchanged from v2.0.0. The release workflow re-runs the Go tests, vet, race detector, JavaScript syntax checks, and Windows package build against this exact release branch. The results of that GitHub Actions run are authoritative for this release.
 
 | Check | Result |
 |---|---|
-| `go test ./...` | PASS |
-| `go vet ./...` | PASS |
-| `go test -race ./...` | PASS |
-| `node --check web/app.js` | PASS |
-| `node --check web/admin.js` | PASS |
+| `go test ./...` | PASS in v2.0.0 baseline; re-run in v2.1.0 release workflow |
+| `go vet ./...` | PASS in v2.0.0 baseline; re-run in v2.1.0 release workflow |
+| `go test -race ./...` | PASS in v2.0.0 baseline; re-run in v2.1.0 release workflow |
+| `node --check web/app.js` | PASS in v2.0.0 baseline; re-run in v2.1.0 release workflow |
+| `node --check web/admin.js` | PASS in v2.0.0 baseline; re-run in v2.1.0 release workflow |
 | Linux amd64 static host build | PASS |
 | Windows x64 cross-build | PASS (PE32+ executable verified) |
 | Local HTTP API / transfer / source-license / multi-client smoke test | PASS |
 | Persistent host JSONL log and admin JSON/CSV export | PASS |
 | PowerShell launcher execution on Windows | NOT RUN in this environment |
 | Actual Windows-to-Windows LAN test on separate physical PCs | PENDING user validation |
-| Browser UI end-to-end compatibility on Edge/Chrome/Firefox | PENDING user validation |
+| Main/Admin DOM ID compatibility and CSS brace-balance checks | PASS (source-level checks) |
+| Browser UI visual/end-to-end compatibility on Edge/Chrome/Firefox | PENDING user validation |
+
+## v2.1 UI validation
+
+The redesigned CSS preserves the element IDs consumed by `app.js` and `admin.js`; the updated admin page has no duplicate IDs. Both CSS files have balanced braces. Actual browser rendering, resizing, and interaction checks in Edge, Chrome, and Firefox have not been performed in this environment and remain pending user validation.
 
 ## Smoke test coverage
 
