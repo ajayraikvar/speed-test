@@ -1,22 +1,8 @@
 <!-- Copyright (C) 2026 Ajay Raikvar. SPDX-License-Identifier: AGPL-3.0-or-later. See ../LICENSE and ../NOTICE. -->
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b1220">
-  <title>Speed Test — Host Logs</title>
-  <link rel="stylesheet" href="/admin.css">
-  <script src="/admin.js" defer></script>
-</head>
-<body>
-  <main class="shell">
-    <header><div><p class="eyebrow">HOST-ONLY DASHBOARD</p><h1>Speed Test <span>Logs</span></h1><p class="sub">Completed client test summaries stored on this host.</p></div><a href="/">Open test page</a></header>
-    <section class="summary"><div><span>Total loaded</span><strong id="totalCount">—</strong></div><div><span>Latest test</span><strong id="latestTime">—</strong></div><div><span>Data file</span><strong>tests.jsonl</strong></div></section>
-    <section class="toolbar"><button id="refreshButton">Refresh logs</button><a href="/api/admin/logs?format=csv">Export CSV</a><a href="/api/admin/logs?download=1">Download JSON</a></section>
-    <div id="status" class="status">Loading host logs…</div>
-    <div class="table-wrap"><table><thead><tr><th>Time (UTC)</th><th>Client IP</th><th>Download</th><th>Upload</th><th>Latency</th><th>Jitter</th><th>Duration</th><th>Test ID</th></tr></thead><tbody id="logRows"><tr><td colspan="8">Loading…</td></tr></tbody></table></div>
-    <footer>© 2026 Ajay Raikvar · Developed by <a href="https://www.ajayraikvar.com">www.ajayraikvar.com</a></footer>
-  </main>
-</body>
-</html>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0a1120"><title>Speed Test — Host Control Center</title><link rel="stylesheet" href="/admin.css"><script src="/admin.js" defer></script></head><body><main class="shell">
+<header><div><p class="eyebrow">HOST-ONLY CONTROL CENTER · V2.0.0</p><h1>Speed Test <span>Admin</span></h1><p class="sub">Local host dashboard. This page is accessible only from the host PC.</p></div><a class="back" href="/">Open test page ↗</a></header>
+<section class="kpis"><article><span>Total tests</span><strong id="totalTests">—</strong></article><article><span>Connected clients</span><strong id="activeClients">—</strong></article><article><span>Average download</span><strong id="averageDownload">—</strong></article><article><span>Average upload</span><strong id="averageUpload">—</strong></article><article><span>Average latency</span><strong id="averageLatency">—</strong></article></section>
+<section class="panel"><div class="panel-head"><div><p class="eyebrow">LIVE CONNECTIONS</p><h2>Connected clients <small id="clientLimit"></small></h2></div><button id="refreshButton">Refresh now</button></div><div id="clientGrid" class="client-grid"><p class="empty">No active browser clients.</p></div></section>
+<section class="panel"><div class="panel-head"><div><p class="eyebrow">PERFORMANCE COMPARISON</p><h2>Client comparison and recent results</h2></div><input id="searchBox" type="search" placeholder="Search device, IP, browser…" autocomplete="off"></div><div id="comparison" class="comparison"><p class="empty">Run tests to compare client throughput.</p></div></section>
+<section class="panel"><div class="panel-head"><div><p class="eyebrow">PERSISTENT HOST LOG</p><h2>Test history <small id="logCount"></small></h2></div><div class="actions"><a href="/api/admin/logs?format=csv">Export CSV</a><a href="/api/admin/logs">View JSON</a></div></div><div id="status" class="status">Loading host logs…</div><div class="table-wrap"><table><thead><tr><th>Time (local)</th><th>Client</th><th>IP</th><th>Download avg / peak</th><th>Upload avg / peak</th><th>Latency</th><th>Jitter</th><th>Mode</th><th>Streams</th><th>Test ID</th></tr></thead><tbody id="logRows"><tr><td colspan="10">Loading…</td></tr></tbody></table></div></section>
+<footer>© 2026 Ajay Raikvar · Developed by <a href="https://www.ajayraikvar.com">www.ajayraikvar.com</a> · Host logs remain local to this PC.</footer></main></body></html>

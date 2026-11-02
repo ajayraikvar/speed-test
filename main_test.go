@@ -2,183 +2,183 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
-func testServer(t *testing.T) *httptest.Server {
+func newTestHandler(t *testing.T) (http.Handler, *logStore, *clientRegistry) {
 	t.Helper()
 	store, err := newLogStore(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
+	clients := newClientRegistry(2)
 	updates := newUpdateChecker()
-	return httptest.NewServer(newHandler(serverInfo{
-		Name: appName, Version: appVersion, Developer: developer,
-		Website: "https://www.ajayraikvar.com", Repository: repoURL,
-		Hostname: "test-host", Port: 8080, Addresses: []string{"192.168.1.10"},
-	}, store, updates))
+	info := serverInfo{Name: appName, Version: appVersion, Developer: developer, Website: "https://www.ajayraikvar.com", Repository: repoURL, Hostname: "test-host", Port: 8080, Addresses: []string{"192.168.1.10"}, MaxClients: 2}
+	return newHandler(info, store, updates, clients), store, clients
 }
 
-func TestHomePageAndBranding(t *testing.T) {
-	s := testServer(t)
-	defer s.Close()
-	resp, err := http.Get(s.URL + "/")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	body, _ := io.ReadAll(resp.Body)
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("status = %d", resp.StatusCode)
-	}
-	if !strings.Contains(string(body), "Speed Test") || !strings.Contains(string(body), "Ajay Raikvar") {
-		t.Fatal("home page is missing product or creator branding")
-	}
-	if strings.Contains(string(body), "LAN Speed Test") {
-		t.Fatal("old product branding remains in the home page")
+func TestHomeAndEmbeddedDashboardAssets(t *testing.T) {
+	h, _, _ := newTestHandler(t)
+	for _, path := range []string{"/", "/app.js", "/style.css", "/admin.js", "/admin.css"} {
+		r := httptest.NewRequest(http.MethodGet, path, nil)
+		r.RemoteAddr = "127.0.0.1:1000"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: status %d", path, w.Code)
+		}
 	}
 }
 
-func TestEmbeddedAssetsAndInfo(t *testing.T) {
-	s := testServer(t)
-	defer s.Close()
-	for _, path := range []string{"/app.js", "/style.css", "/admin.js", "/admin.css"} {
-		resp, err := http.Get(s.URL + path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			t.Fatalf("%s status = %d", path, resp.StatusCode)
-		}
-	}
-	resp, err := http.Get(s.URL + "/api/info")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
+func TestInfoAndUpdateEndpoints(t *testing.T) {
+	h, _, _ := newTestHandler(t)
+	r := httptest.NewRequest(http.MethodGet, "/api/info", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
 	var info serverInfo
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+	if err := json.Unmarshal(w.Body.Bytes(), &info); err != nil {
 		t.Fatal(err)
 	}
-	if info.Port != 8080 || info.Developer != developer || info.Name != "Speed Test" || len(info.Addresses) != 1 {
-		t.Fatalf("unexpected info response: %+v", info)
+	if info.Version != appVersion || info.MaxClients != 2 || info.Name != "Speed Test" {
+		t.Fatalf("unexpected info: %+v", info)
+	}
+	r = httptest.NewRequest(http.MethodGet, "/api/update", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	var update updateSnapshot
+	if err := json.Unmarshal(w.Body.Bytes(), &update); err != nil {
+		t.Fatal(err)
+	}
+	if update.CurrentVersion != appVersion {
+		t.Fatalf("current version = %s", update.CurrentVersion)
 	}
 }
 
-func TestPingAndUpdateEndpoints(t *testing.T) {
-	s := testServer(t)
-	defer s.Close()
-	resp, err := http.Get(s.URL + "/api/ping")
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusNoContent {
-		t.Fatalf("ping status = %d", resp.StatusCode)
-	}
-	resp, err = http.Get(s.URL + "/api/update")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	var state updateSnapshot
-	if err := json.NewDecoder(resp.Body).Decode(&state); err != nil {
-		t.Fatal(err)
-	}
-	if state.CurrentVersion != appVersion {
-		t.Fatalf("current version = %q", state.CurrentVersion)
+func heartbeat(t *testing.T, h http.Handler, id, ip string) {
+	t.Helper()
+	body := `{"clientId":"` + id + `","clientName":"Test PC","platform":"Windows","browser":"Edge","connectionType":"ethernet"}`
+	r := httptest.NewRequest(http.MethodPost, "/api/client/heartbeat", strings.NewReader(body))
+	r.RemoteAddr = ip + ":50000"
+	r.Header.Set("User-Agent", "SpeedTest-Test-Agent")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("heartbeat status=%d body=%s", w.Code, w.Body.String())
 	}
 }
 
-func TestUploadCountsBytes(t *testing.T) {
-	s := testServer(t)
-	defer s.Close()
-	resp, err := http.Post(s.URL+"/api/upload", "application/octet-stream", strings.NewReader("test-data"))
-	if err != nil {
+func TestClientRegistryLimitAndExpiryShape(t *testing.T) {
+	c := newClientRegistry(1)
+	if _, _, err := c.Heartbeat(clientHeartbeat{ClientID: "client-a", ClientName: "Office PC"}, "192.168.1.20", "Edge"); err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
-	var result struct {
-		Received int64 `json:"receivedBytes"`
+	if _, _, err := c.Heartbeat(clientHeartbeat{ClientID: "client-b"}, "192.168.1.21", "Chrome"); err == nil {
+		t.Fatal("expected client capacity error")
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		t.Fatal(err)
-	}
-	if resp.StatusCode != http.StatusOK || result.Received != int64(len("test-data")) {
-		t.Fatalf("status=%d received=%d", resp.StatusCode, result.Received)
+	if len(c.List()) != 1 {
+		t.Fatalf("active sessions = %d", len(c.List()))
 	}
 }
 
-func TestResultSavedToPersistentHostLog(t *testing.T) {
-	dir := t.TempDir()
-	store, err := newLogStore(dir)
+func TestMultiStreamUploadRequiresRegisteredClient(t *testing.T) {
+	h, _, _ := newTestHandler(t)
+	r := httptest.NewRequest(http.MethodPost, "/api/upload", strings.NewReader("small-payload"))
+	r.RemoteAddr = "192.168.1.20:51000"
+	r.Header.Set("X-Speed-Test-Client", "client-a")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("unregistered upload status=%d", w.Code)
+	}
+	heartbeat(t, h, "client-a", "192.168.1.20")
+	r = httptest.NewRequest(http.MethodPost, "/api/upload", strings.NewReader("small-payload"))
+	r.RemoteAddr = "192.168.1.20:51000"
+	r.Header.Set("X-Speed-Test-Client", "client-a")
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("registered upload status=%d body=%s", w.Code, w.Body.String())
+	}
+	var response map[string]int64
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response["receivedBytes"] != int64(len("small-payload")) {
+		t.Fatalf("received bytes=%d", response["receivedBytes"])
+	}
+}
+
+func TestResultSavedWithClientDiagnostics(t *testing.T) {
+	h, store, _ := newTestHandler(t)
+	heartbeat(t, h, "client-a", "192.168.1.20")
+	payload := `{"clientId":"client-a","clientName":"Office PC","platform":"Windows 11","browser":"Edge","connectionType":"ethernet","mode":"bidirectional","streams":4,"durationSeconds":10,"downloadMbps":940.2,"uploadMbps":880.5,"downloadMinMbps":700,"downloadPeakMbps":980,"uploadMinMbps":650,"uploadPeakMbps":920,"latencyMs":1.2,"latencyMinMs":0.8,"latencyMaxMs":2.1,"jitterMs":0.2,"downloadBytes":1175000000,"uploadBytes":1100000000}`
+	r := httptest.NewRequest(http.MethodPost, "/api/results", strings.NewReader(payload))
+	r.RemoteAddr = "192.168.1.20:54321"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("result status=%d body=%s", w.Code, w.Body.String())
+	}
+	rows, err := store.ReadAll()
 	if err != nil {
 		t.Fatal(err)
 	}
-	updates := newUpdateChecker()
-	h := newHandler(serverInfo{Name: appName, Version: appVersion}, store, updates)
-	payload := `{"durationSeconds":10,"downloadMbps":940.2,"uploadMbps":880.5,"latencyMs":1.2,"jitterMs":0.2,"downloadBytes":1175000000,"uploadBytes":1100000000,"clientVersion":"1.0.0"}`
-	req := httptest.NewRequest(http.MethodPost, "/api/results", strings.NewReader(payload))
-	req.RemoteAddr = "192.168.1.20:54321"
-	req.Header.Set("User-Agent", "Test Browser")
+	if len(rows) != 1 {
+		t.Fatalf("rows=%d", len(rows))
+	}
+	x := rows[0]
+	if x.ClientIP != "192.168.1.20" || x.ClientName != "Test PC" || x.DownloadMbps != 940.2 || x.Mode != "bidirectional" || x.Streams != 4 || x.DownloadPeakMbps != 980 {
+		t.Fatalf("unexpected row: %+v", x)
+	}
+}
+
+func TestAdminIsLoopbackOrOwnHostOnly(t *testing.T) {
+	h, store, _ := newTestHandler(t)
+	store.Append(testLog{ID: "id-1", ClientName: "PC", ClientIP: "192.168.1.8", DownloadMbps: 100, Status: "completed"})
+	remote := httptest.NewRequest(http.MethodGet, "/api/admin/logs?format=csv", nil)
+	remote.RemoteAddr = "192.168.1.42:40000"
 	rw := httptest.NewRecorder()
-	h.ServeHTTP(rw, req)
-	if rw.Code != http.StatusCreated {
-		t.Fatalf("status=%d body=%s", rw.Code, rw.Body.String())
-	}
-	logPath := filepath.Join(dir, "logs", "tests.jsonl")
-	contents, err := os.ReadFile(logPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var row testLog
-	if err := json.Unmarshal(bytesTrimSpace(contents), &row); err != nil {
-		t.Fatal(err)
-	}
-	if row.ClientIP != "192.168.1.20" || row.DownloadMbps != 940.2 || row.Status != "completed" {
-		t.Fatalf("unexpected log row: %+v", row)
-	}
-}
-
-func bytesTrimSpace(b []byte) []byte { return []byte(strings.TrimSpace(string(b))) }
-
-func TestAdminDashboardIsLoopbackOnly(t *testing.T) {
-	s := testServer(t)
-	defer s.Close()
-	store, err := newLogStore(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	hLocal := newHandler(serverInfo{}, store, newUpdateChecker())
-	localReq := httptest.NewRequest(http.MethodGet, "/admin", nil)
-	localReq.RemoteAddr = "127.0.0.1:45678"
-	localRW := httptest.NewRecorder()
-	hLocal.ServeHTTP(localRW, localReq)
-	if localRW.Code != http.StatusTemporaryRedirect {
-		t.Fatalf("localhost admin status = %d", localRW.Code)
-	}
-	store2, err2 := newLogStore(t.TempDir())
-	if err2 != nil {
-		t.Fatal(err2)
-	}
-	h := newHandler(serverInfo{}, store2, newUpdateChecker())
-	req := httptest.NewRequest(http.MethodGet, "/api/admin/logs", nil)
-	req.RemoteAddr = "192.168.1.42:50000"
-	rw := httptest.NewRecorder()
-	h.ServeHTTP(rw, req)
+	h.ServeHTTP(rw, remote)
 	if rw.Code != http.StatusForbidden {
-		t.Fatalf("remote logs status = %d", rw.Code)
+		t.Fatalf("remote admin status=%d", rw.Code)
+	}
+	local := httptest.NewRequest(http.MethodGet, "/api/admin/logs?format=csv", nil)
+	local.RemoteAddr = "127.0.0.1:40000"
+	lw := httptest.NewRecorder()
+	h.ServeHTTP(lw, local)
+	if lw.Code != http.StatusOK || !strings.Contains(lw.Body.String(), "id-1") {
+		t.Fatalf("local export status=%d body=%s", lw.Code, lw.Body.String())
+	}
+}
+
+func TestPersistentLogsSurviveStoreReopen(t *testing.T) {
+	dir := t.TempDir()
+	s, err := newLogStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = s.Append(testLog{ID: "persist-1", Status: "completed"}); err != nil {
+		t.Fatal(err)
+	}
+	s2, err := newLogStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s2.ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].ID != "persist-1" {
+		t.Fatalf("persisted rows=%+v", rows)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "logs", "tests.jsonl")); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -186,38 +186,58 @@ func TestCompareVersions(t *testing.T) {
 	cases := []struct {
 		a, b string
 		want int
-	}{{"1.1.0", "1.0.9", 1}, {"v1.0.0", "1.0.0", 0}, {"1.0.0", "1.0.1", -1}}
+	}{{"2.0.0", "1.9.9", 1}, {"v2.0.0", "2.0.0", 0}, {"1.0.0", "2.0.0", -1}}
 	for _, c := range cases {
 		if got := compareVersions(c.a, c.b); got != c.want {
-			t.Errorf("compareVersions(%q,%q)=%d want %d", c.a, c.b, got, c.want)
+			t.Errorf("compareVersions(%s,%s)=%d want %d", c.a, c.b, got, c.want)
 		}
 	}
 }
 
-func TestUpdateCheckerOfflineDoesNotBlockStartup(t *testing.T) {
-	u := newUpdateChecker()
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-	defer cancel()
-	u.refresh(ctx)
-	if u.Snapshot().CurrentVersion != appVersion {
-		t.Fatal("offline state lost current version")
+func TestCorrespondingSourceAndLicenseAreServedFromPackage(t *testing.T) {
+	h, _, _ := newTestHandler(t)
+	tmp := t.TempDir()
+	exe := filepath.Join(tmp, "speed-test.exe")
+	oldExecutablePath := executablePath
+	executablePath = func() (string, error) { return exe, nil }
+	t.Cleanup(func() { executablePath = oldExecutablePath })
+
+	sourceName := "Speed-Test-v" + appVersion + "-Source.zip"
+	if err := os.WriteFile(filepath.Join(tmp, sourceName), []byte("test-source-zip"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "LICENSE"), []byte("GNU AFFERO GENERAL PUBLIC LICENSE"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		path        string
+		wantStatus  int
+		wantContent string
+		wantType    string
+	}{
+		{path: "/source.zip", wantStatus: http.StatusOK, wantContent: "test-source-zip", wantType: "application/zip"},
+		{path: "/LICENSE", wantStatus: http.StatusOK, wantContent: "GNU AFFERO GENERAL PUBLIC LICENSE", wantType: "text/plain"},
+	} {
+		r := httptest.NewRequest(http.MethodGet, tc.path, nil)
+		r.RemoteAddr = "127.0.0.1:1000"
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		if w.Code != tc.wantStatus || !strings.Contains(w.Body.String(), tc.wantContent) {
+			t.Fatalf("%s returned status %d and body %q", tc.path, w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Header().Get("Content-Type"), tc.wantType) {
+			t.Fatalf("%s content type = %q", tc.path, w.Header().Get("Content-Type"))
+		}
 	}
 }
 
-func TestAdminCSVExportIsLoopbackOnly(t *testing.T) {
-	store, err := newLogStore(t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := store.Append(testLog{ID: "test-123", Timestamp: time.Date(2026, 10, 31, 10, 0, 0, 0, time.UTC), ClientIP: "192.168.1.8", DownloadMbps: 100.5, Status: "completed"}); err != nil {
-		t.Fatal(err)
-	}
-	h := newHandler(serverInfo{}, store, newUpdateChecker())
-	req := httptest.NewRequest(http.MethodGet, "/api/admin/logs?format=csv", nil)
-	req.RemoteAddr = "127.0.0.1:60000"
-	rw := httptest.NewRecorder()
-	h.ServeHTTP(rw, req)
-	if rw.Code != http.StatusOK || !strings.Contains(rw.Body.String(), "test-123") || !strings.Contains(rw.Header().Get("Content-Type"), "text/csv") {
-		t.Fatalf("unexpected CSV response: code=%d body=%s", rw.Code, rw.Body.String())
+func TestSourceDownloadRejectsNonGet(t *testing.T) {
+	h, _, _ := newTestHandler(t)
+	r := httptest.NewRequest(http.MethodPost, "/source.zip", strings.NewReader("ignored"))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("POST /source.zip status = %d", w.Code)
 	}
 }

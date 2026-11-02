@@ -1,17 +1,18 @@
 # Security Policy
 
-## Supported versions
+## Scope
 
-Security fixes are made against the latest stable release and the current default branch.
+Speed Test is designed for trusted private networks. It is not intended to be exposed directly to the public internet or used as an authenticated multi-tenant service.
 
-## Reporting a vulnerability
+## Reporting
 
-Please do not publish exploitable details in a public issue. Contact the project maintainer through the contact details on https://www.ajayraikvar.com and include a minimal reproduction, affected version, impact, and suggested mitigation where possible.
+Please report suspected vulnerabilities privately through the contact options on https://www.ajayraikvar.com. Avoid publishing exploit details before a fix is available.
 
-## Deployment guidance
+## Deployment precautions
 
-- Use only on a trusted private network.
-- Do not port-forward the host port or expose it directly to the public internet.
-- Allow Windows Firewall access on Private networks only.
-- The host-only `/admin` and log endpoints are restricted to loopback requests; keep the host machine account secure.
-- Host logs contain client IP addresses and browser user-agent strings. Protect the host profile and its `%LOCALAPPDATA%\AjayRaikvar\SpeedTest\logs` directory.
+- Do not configure router port forwarding to the host.
+- Permit Windows Firewall access only on trusted Private networks.
+- Use a conservative maximum client count on shared networks.
+- Keep the host-only dashboard on the host PC; its APIs reject remote requests.
+- Review local host logs before sharing them because they may contain client IP addresses, device labels, and browser information.
+- The tool measures throughput, not security posture; it does not replace firewall, endpoint, or network security controls.

@@ -1,102 +1,147 @@
-# Speed Test
+# Speed Test v2.0.0
 
-**A self-hosted network performance analyzer for Windows.** One PC runs the host server; other PCs use a modern browser. No client application, external speed-test service, internet measurement endpoint, or third-party runtime is required.
+**A self-hosted network performance analyzer for Windows.**
 
-**Created and maintained by [Ajay Raikvar](https://www.ajayraikvar.com)**  
-**Project:** https://github.com/ajayraikvar/speed-test  
-**License:** GNU Affero General Public License v3.0 or later (`AGPL-3.0-or-later`)
+One Windows PC runs the host. Other PCs use a modern browser; no client application, browser extension, internet speed-test service, external CDN, or third-party runtime is required.
 
-## Quick start
+- **Original project author and maintainer:** Ajay Raikvar
+- **Website:** https://www.ajayraikvar.com
+- **Official repository:** https://github.com/ajayraikvar/speed-test
+- **License:** GNU Affero General Public License v3 or later (`AGPL-3.0-or-later`)
+- **Version:** 2.0.0
 
-1. Extract the complete Windows package to the host PC.
+## Quick start — Windows host
+
+1. Download and extract `Speed-Test-Windows-x64.zip`.
 2. Double-click `Start-Speed-Test.bat`.
-3. Enter a host port (default `80`).
-4. Open one of the printed URLs from another PC in Edge, Chrome, Firefox, or another modern browser.
+3. Enter the host port (default `80`) and maximum browser clients (default `16`).
+4. Open one of the printed `http://HOST-IP:PORT` addresses in Edge, Chrome, Firefox, or another current browser on each client PC.
 5. Keep the host console open while tests are running. Press `Ctrl+C` to stop the server.
 
-The client PCs do not need a BAT file, EXE, extension, or installation.
+Only the host PC runs the BAT file and executable. Client PCs use a browser only.
 
-## Online updates and offline operation
+## What's included in v2.0
 
-The launcher (`Start-Speed-Test.bat` + `Start-Speed-Test.ps1`) checks the public GitHub Releases API for the latest stable release. If a newer release exists, it downloads the Windows ZIP and its checksum file, verifies SHA-256, extracts the release into a version-specific folder, and starts it.
+### v1.0 foundation
 
-If GitHub has no published release yet (the Releases API returns HTTP 404), the launcher treats that as a normal pre-release state and starts the bundled executable. The complete offline ZIP contains `speed-test.exe`. If the host has no internet access, the launcher uses that bundled executable or a previously installed local version. A first-time offline installation must use the complete offline ZIP; a standalone launcher without a cached/bundled executable cannot download an application while offline.
+- Rebranded Speed Test application, original author attribution, AGPL-3.0-or-later licensing, and a self-hosted Windows host/browser-client architecture.
+- Automatic host IPv4 address detection and configurable host port.
+- Memory-based transfer tests; no test payload is written to disk.
 
-The host checks for updates in the background approximately every 15 minutes; connected browser clients poll the host for a cached notice every five minutes. Connected browser clients read the host's cached update status and show a notice when a newer release is available. Clients do not independently contact GitHub.
+### v1.1 speed testing and diagnostics
 
-## Host logs and client reports
+- HTTP/TCP download and upload throughput measurements.
+- 1, 2, 4, or 8 parallel streams.
+- Sequential and simultaneous bidirectional test modes.
+- 5, 10, 20, 30, or 60-second transfer durations.
+- Live download/upload graph, average, minimum sample, and peak throughput.
+- HTTP round-trip latency (median/min/max) and jitter estimate.
+- Local-host versus remote-LAN scope indicator.
+- Browser, platform, and best-effort browser network API hints.
 
-Completed test summaries are appended to a host-side JSON Lines file:
+### v1.2 history and reporting
+
+- Persistent host-side JSON Lines test history.
+- Loopback/host-interface-only administration page with connected clients, history, performance comparison, and CSV/JSON exports.
+- Optional client-side JSON/CSV report download and browser-local recent reports.
+- Print-to-PDF report option using the browser's print dialog.
+
+### v1.3 updates and offline use
+
+- Launcher checks the latest stable GitHub Release when internet is available.
+- Downloaded packages are SHA-256 verified before installation.
+- Each downloaded version is installed in its own version-specific folder.
+- Existing logs and settings remain outside version folders and are not modified by updates.
+- Offline startup uses the bundled server or the newest locally cached version.
+- Connected browser clients receive the host's cached update notice; clients do not contact GitHub themselves.
+
+### v1.4 multiple clients
+
+- Multiple browser clients can be connected at once (host-configurable limit, 1–128).
+- Clients identify themselves with a browser-generated session ID and an editable device label.
+- Host dashboard shows active clients and compares recent results by device and IP.
+- Inactive sessions expire after 35 seconds without a heartbeat.
+
+### v2.0 network analyzer dashboard
+
+- Combined host/client overview and network diagnostics.
+- Consistent Mbps/Gbps conversion across gauge, result cards, chart, recent reports, and host dashboard.
+- Per-test metadata: device label, IP, browser/platform, test mode, stream count, duration, throughput, HTTP RTT, jitter, and byte counts.
+- Local corresponding-source ZIP and license notice are offered from the running host (`/source.zip`, `/LICENSE`, `/NOTICE`).
+
+## Measurement scope and limitations
+
+This is a browser-based HTTP/TCP throughput analyzer. Download and upload rates are measured over the connection between the browser and this host. Multi-stream mode opens parallel HTTP connections; bidirectional mode runs upload and download transfers at the same time.
+
+Latency and jitter are estimated with repeated HTTP round trips to this host. They are **not raw ICMP ping measurements**. Standard browser JavaScript cannot send arbitrary raw UDP packets or ICMP echo requests, so this release does **not** claim to measure UDP packet loss. Browser APIs do not reliably reveal the physical Ethernet/Wi-Fi link speed or link type on every platform; the displayed network-type field is only a best-effort browser hint. Host interface labels are detected from operating-system interface names and may be generic on some systems.
+
+Browser timing includes browser scheduling, JavaScript, HTTP, and server overhead. Results are useful for comparing the same LAN path under consistent conditions, but they are not a calibrated network certification instrument. For best comparison, use wired Ethernet on both PCs, close other heavy transfers, and keep duration/stream settings consistent.
+
+## Host data and privacy
+
+Host data is stored outside the application/version folder:
 
 `%LOCALAPPDATA%\AjayRaikvar\SpeedTest\logs\tests.jsonl`
 
-The host-only dashboard is available locally at `http://127.0.0.1:<port>/admin`. It can view recent results and export CSV or JSON. The admin page and its log API reject non-loopback requests; regular clients cannot browse the host log.
+The JSONL file is append-only from the application; it is not cleared during updates. The host dashboard is intended for the host PC only and rejects requests from other client IPs. Host logs may contain client IP addresses, device labels, browser user-agent details, and test statistics. Review them before sharing. The transfer payloads are discarded in memory and are not stored as files.
 
-After a test, the client may optionally download its own report as JSON or CSV. The server stores summary metrics only, not the generated test payloads.
+The client browser keeps a short list of recent reports in that browser's local storage. It can also download an individual JSON/CSV report or print it to PDF. The host keeps its own central history independently.
 
-Each host log can include: test ID, UTC timestamp, client IP address, browser user-agent, duration, download/upload throughput, latency, jitter, transferred byte counts, client version, and completion status. The client IP and user-agent are collected for local troubleshooting; keep host logs private and clear them using normal file-management tools when appropriate.
+## Updating and offline use
 
-## What's measured
+Run `Start-Speed-Test.bat` to check for a newer official stable release. The launcher compares the release version against both the bundled package and locally cached versions. It downloads only if GitHub has a newer version, verifies the published SHA-256 checksum, and extracts to a new version-specific folder. If update checking or download fails, it uses the newest available local copy.
 
-- **Download:** host to browser throughput over HTTP/TCP.
-- **Upload:** browser to host throughput over HTTP/TCP.
-- **Latency:** repeated HTTP round-trip time, summarized by median.
-- **Jitter:** average absolute difference between successive HTTP round-trip samples.
-- **Live throughput graph:** rolling transfer-rate samples.
-
-This browser-based edition does not claim to measure raw ICMP ping or UDP packet loss. Those require a separate native diagnostic path and are not inferred from browser HTTP measurements.
-
-## Runtime requirements
-
-- **Host:** Windows 10/11 x64 for the provided release package. The Go server is standalone; Go, Node.js, Python, Java, PHP, PowerShell, and a separate web server are not runtime dependencies. PowerShell is used by the update launcher and is included with supported Windows installations.
-- **Client:** any modern browser with streaming Fetch and XMLHttpRequest support.
-- **Network:** host and clients must be able to reach one another over the LAN.
-
-Windows Defender Firewall may ask whether to allow the server. Permit it on **Private networks only** for a trusted network. The app does not create firewall rules or modify Windows configuration automatically.
-
-## Persistent data locations
-
-Application versions are installed under:
-
-`%LOCALAPPDATA%\AjayRaikvar\SpeedTest\versions\`
-
-Host logs are stored separately under:
-
-`%LOCALAPPDATA%\AjayRaikvar\SpeedTest\logs\`
-
-Updating the executable does not overwrite or clear logs. The launcher stages a new version separately and only starts it after the executable has been extracted and verified.
+A first-time offline setup must use the complete Windows ZIP, which includes the executable, launchers, source ZIP, license, and documentation. A standalone BAT or PowerShell script alone is not sufficient for a first-time offline install.
 
 ## Build from source
 
-Install Go 1.21 or later, then run:
+Development prerequisites: Go 1.23+ and Node.js (for JavaScript syntax checks). Runtime dependencies: none beyond Windows PowerShell and the browser clients.
 
 ```powershell
 go test ./...
 go vet ./...
 go test -race ./...
-$env:GOOS='windows'; $env:GOARCH='amd64'; go build -trimpath -ldflags='-s -w' -o dist/speed-test.exe .
+node --check web/app.js
+node --check web/admin.js
 ```
 
-The application currently uses only the Go standard library. No third-party Go modules are required.
+To build a Windows x64 executable manually:
+
+```powershell
+$env:GOOS = 'windows'
+$env:GOARCH = 'amd64'
+$env:CGO_ENABLED = '0'
+go build -trimpath -ldflags "-s -w -X main.appVersion=2.0.0" -o dist/speed-test.exe .
+```
+
+The complete build/package helper is `scripts/build-package.ps1`.
+
+## Security guidance
+
+- Intended for a trusted private LAN. Do not expose the host port to the public internet or configure router port forwarding.
+- When Windows Firewall asks, allow access only on trusted Private networks.
+- The host binds to all local interfaces so LAN clients can connect; firewall policy is the network boundary.
+- The admin page and admin APIs are restricted to loopback or the host's own detected interface addresses.
+- Configure a sensible maximum client count; each browser can open multiple streams.
+- Do not use the application as an authenticated, multi-tenant internet service.
+
+See [SECURITY.md](SECURITY.md) for reporting guidance.
 
 ## Attribution and contributions
 
-The original project, product identity, upstream repository, and official release channel are maintained by **Ajay Raikvar**. Preserve existing copyright, license, and attribution notices when copying or modifying the project. Clearly identify modified versions and their maintainers; do not imply that an unofficial fork is the official upstream build.
+The original upstream project, application identity, and official release channel are maintained by **Ajay Raikvar**. Preserve copyright, license, and branding notices. Modified versions must be clearly identified as modified and must not imply that an unofficial fork is an official Ajay Raikvar release. Contributors retain copyright in their own contributions unless they separately agree otherwise; accepted contributions are distributed under the project license.
 
-Contributors retain copyright in their own contributions unless they separately agree otherwise. Contributions are accepted under the project license so the project can be distributed as a combined AGPL-licensed work. See [CONTRIBUTING.md](CONTRIBUTING.md).
+## Version 2.0 roadmap completion
 
-## Release policy
-
-The launcher follows the latest stable GitHub Release. The project may promote one release as the current official download, but public Git history, tags, forks, caches, and already-downloaded files cannot be reliably revoked. Previous source commits are intentionally retained for transparency and reproducibility. See [docs/RELEASE-POLICY.md](docs/RELEASE-POLICY.md).
-
-## Security and exposure
-
-This server is designed for a trusted local network. It listens on all IPv4 interfaces so LAN clients can connect. It does not provide user authentication or TLS by default. Do not expose the host port to the public internet or configure router port-forwarding. The `/admin` dashboard and host logs are restricted to loopback requests on the host PC.
-
-## Project status
-
-Version 1.0.0 is the initial public release. Automated Go tests, race checks, static checks, the Windows build, and a Windows-runner launcher smoke test are run by GitHub Actions. A physical Windows-to-Windows LAN test has not yet been independently confirmed; validate your own network before production use.
+| Planned version | Delivered in v2.0.0 |
+|---|---|
+| v1.0 — Rebrand, licensing, stable host/client | Included |
+| v1.1 — Improved speed tests, multi-stream, diagnostics | Included, with browser measurement limitations documented |
+| v1.2 — Persistent logs, client reports | Included |
+| v1.3 — Auto-updater, offline caching, notifications | Included in launcher and host/client notification flow |
+| v1.4 — Multiple clients and comparisons | Included |
+| v2.0 — Network performance analyzer | Included as a browser-based HTTP/TCP analyzer; raw ICMP/UDP tests remain outside browser capability |
 
 ---
 
-© 2026 Ajay Raikvar · Developed by [www.ajayraikvar.com](https://www.ajayraikvar.com)
+© 2026 Ajay Raikvar · Developed by [www.ajayraikvar.com](https://www.ajayraikvar.com) · You may use, modify, and redistribute under AGPL-3.0-or-later · No warranty

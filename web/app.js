@@ -1,395 +1,77 @@
 // Copyright (C) 2026 Ajay Raikvar. SPDX-License-Identifier: AGPL-3.0-or-later. See ../LICENSE and ../NOTICE.
 (() => {
   'use strict';
-
   const $ = (id) => document.getElementById(id);
-  const state = { running: false, cancel: false, chart: [], maxSpeed: 1, lastResults: null, stopCurrent: null, hostInfo: null };
-  const canvas = $('speedChart');
-  const ctx = canvas.getContext('2d');
-  const downloadBlobSize = 64 * 1024 * 1024;
-  let toastTimer = null;
-
-  function showToast(message) {
-    const node = $('toast');
-    node.textContent = message;
-    node.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => node.classList.remove('show'), 3800);
-  }
-
-  function formatSpeed(mbps) {
-    if (!Number.isFinite(mbps)) return '—';
-    return mbps >= 1000 ? (mbps / 1000).toFixed(2) : mbps.toFixed(1);
-  }
-
-  function speedUnit(mbps) { return mbps >= 1000 ? 'Gbps' : 'Mbps'; }
-  function formatMBps(mbps) { return Number.isFinite(mbps) ? `${(mbps / 8).toFixed(2)} MB/s` : '—'; }
-
-  function setSpeed(value, direction) {
-    $('liveSpeed').textContent = formatSpeed(value);
-    $('liveUnit').textContent = speedUnit(value);
-    $('liveDirection').textContent = direction;
-    $('gaugeRing').style.setProperty('--angle', `${Math.min(280, Math.max(0, (value / Math.max(state.maxSpeed, value, 1)) * 280))}deg`);
-  }
-
-  function drawChart() {
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const width = Math.max(280, rect.width);
-    const height = 92;
-    canvas.width = Math.floor(width * dpr);
-    canvas.height = Math.floor(height * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-    ctx.strokeStyle = 'rgba(143,162,189,.13)';
-    ctx.lineWidth = 1;
-    for (let i = 1; i <= 3; i++) {
-      const y = (height - 8) * i / 4;
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+  const state = {
+    running:false, cancel:false, chart:[], maxSpeed:1, lastResults:null, stopFns:[], hostInfo:null,
+    clientId:localStorage.getItem('st2-client-id') || (crypto.randomUUID ? crypto.randomUUID() : `st-${Date.now()}-${Math.random().toString(16).slice(2)}`),
+    session:null, activeClients:0, maxClients:16, heartbeatTimer:null, sampleTimer:null, updateTimer:null
+  };
+  localStorage.setItem('st2-client-id',state.clientId);
+  const canvas=$('speedChart'),ctx=canvas.getContext('2d');
+  let toastTimer=null;
+  const mbpsToRate=(mbps)=>{
+    if(!Number.isFinite(mbps)) return {value:'—',unit:'Mbps'};
+    return mbps>=1000?{value:(mbps/1000).toFixed(2),unit:'Gbps'}:{value:mbps.toFixed(1),unit:'Mbps'};
+  };
+  const mbpsToMBps=(mbps)=>Number.isFinite(mbps)?`${(mbps/8).toFixed(2)} MB/s`:'—';
+  const fmt=(n,d=1)=>Number.isFinite(Number(n))?Number(n).toFixed(d):'—';
+  function showToast(message){const n=$('toast');n.textContent=message;n.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>n.classList.remove('show'),4200);}
+  function browserName(){const ua=navigator.userAgent;if(/Edg\//.test(ua))return 'Microsoft Edge';if(/Firefox\//.test(ua))return 'Firefox';if(/Chrome\//.test(ua))return 'Chrome';if(/Safari\//.test(ua))return 'Safari';return 'Browser';}
+  function platformName(){return navigator.userAgentData?.platform||navigator.platform||'Unknown';}
+  function networkType(){const c=navigator.connection||navigator.mozConnection||navigator.webkitConnection;if(!c)return 'Not exposed';return c.type||c.effectiveType||'Unknown';}
+  function currentClientName(){return $('clientName').value.trim()||`${platformName()} browser`;}
+  function clientMeta(){return {clientId:state.clientId,clientName:currentClientName(),platform:platformName(),browser:browserName(),connectionType:networkType()};}
+  function drawChart(){
+    const rect=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1,w=Math.max(260,rect.width),h=104;
+    canvas.width=Math.floor(w*dpr);canvas.height=Math.floor(h*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle='rgba(143,162,189,.13)';ctx.lineWidth=1;for(let i=1;i<=3;i++){const y=(h-10)*i/4;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+    const all=state.chart.slice(-100),max=Math.max(1,...all.flatMap(p=>[p.download||0,p.upload||0]))*1.12;
+    for(const [key,color] of [['download','#61aaff'],['upload','#42dfbd']]){
+      ctx.beginPath();let started=false;all.forEach((p,i)=>{const v=p[key]||0;if(!v)return;const x=i*w/Math.max(1,all.length-1),y=h-8-(v/max)*(h-18);if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);});
+      if(started){ctx.lineWidth=2;ctx.strokeStyle=color;ctx.shadowColor=color;ctx.shadowBlur=7;ctx.stroke();ctx.shadowBlur=0;}
     }
-    if (state.chart.length < 2) return;
-    const max = Math.max(1, ...state.chart.map(p => p.value)) * 1.12;
-    const points = state.chart.slice(-90);
-    const step = width / Math.max(1, points.length - 1);
-    ctx.beginPath();
-    points.forEach((p, i) => {
-      const x = i * step;
-      const y = height - 7 - (p.value / max) * (height - 17);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    });
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = '#45dfbd';
-    ctx.shadowColor = 'rgba(57,223,189,.38)';
-    ctx.shadowBlur = 8;
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    const last = points[points.length - 1];
-    const x = (points.length - 1) * step;
-    const y = height - 7 - (last.value / max) * (height - 17);
-    ctx.fillStyle = '#6be8cb'; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+    $('chartScale').textContent=max>=1000?'Gbps':'Mbps';
   }
-
-  function addSample(value) {
-    state.chart.push({ value, time: Date.now() });
-    if (state.chart.length > 120) state.chart.shift();
-    state.maxSpeed = Math.max(state.maxSpeed, value, 1);
-    drawChart();
-    setSpeed(value, $('liveDirection').textContent);
+  function pushSample(direction,mbps){const last=state.chart[state.chart.length-1]||{download:0,upload:0};const point={download:last.download,upload:last.upload,time:Date.now()};point[direction]=mbps;state.chart.push(point);if(state.chart.length>120)state.chart.shift();state.maxSpeed=Math.max(state.maxSpeed,mbps,1);drawChart();const r=mbpsToRate(mbps);$('liveSpeed').textContent=r.value;$('liveUnit').textContent=r.unit;$('liveDirection').textContent=direction==='download'?'Host → Browser':'Browser → Host';$('gaugeRing').style.setProperty('--angle',`${Math.min(280,Math.max(0,mbps/state.maxSpeed*280))}deg`);}
+  function updateProgress(percent,label){$('progressFill').style.width=`${Math.min(100,Math.max(0,percent))}%`;$('progressLabel').textContent=`${Math.round(percent)}%`;if(label)$('stageLabel').textContent=label;}
+  function identifyScope(clientIP){const ips=state.hostInfo?.addresses||[];const local=['127.0.0.1','::1'].includes(clientIP)||ips.includes(clientIP);return local?'LOCAL TEST':'LAN TEST';}
+  async function loadHostInfo(){try{const r=await fetch('/api/info',{cache:'no-store'});if(!r.ok)throw new Error(`HTTP ${r.status}`);state.hostInfo=await r.json();$('hostName').textContent=state.hostInfo.hostname||'Host PC';$('hostAddress').textContent=`Port ${state.hostInfo.port} · ${(state.hostInfo.addresses||[]).join(', ')||'Host address unavailable'}`;$('appVersion').textContent=`v${state.hostInfo.version}`;state.maxClients=state.hostInfo.maxClients||16;$('connectionStatus').textContent='Connected to host';$('hostState').textContent='HOST ONLINE';$('statusDot').classList.remove('offline');return true;}catch(e){$('connectionStatus').textContent='Host connection issue';$('hostState').textContent='HOST OFFLINE';$('statusDot').classList.add('offline');$('hostName').textContent='Could not reach host server';$('hostAddress').textContent=e.message;return false;}}
+  async function heartbeat(){
+    try{const r=await fetch('/api/client/heartbeat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(clientMeta()),cache:'no-store'});const d=await r.json();
+      if(!r.ok){state.session=null;$('startButton').disabled=true;$('capacityBanner').hidden=false;$('capacityBanner').textContent=d.error||'The host has reached its connected-client limit. Try again later.';$('startButton').disabled=true;$('hostState').textContent='CAPACITY REACHED';return false;}
+      state.session=d.client;state.activeClients=d.activeClients;state.maxClients=d.maxClients;$('capacityBanner').hidden=true;$('startButton').disabled=state.running;$('clientIP').textContent=d.client.clientIp||'Client IP unavailable';$('clientDetails').textContent=`${d.client.browser||browserName()} · ${d.client.platform||platformName()} · ${d.client.connectionType||networkType()}`;$('testScope').textContent=identifyScope(d.client.clientIp);$('scopeDetail').textContent=identifyScope(d.client.clientIp);$('networkType').textContent=d.client.connectionType||networkType();$('browserName').textContent=d.client.browser||browserName();$('platformName').textContent=d.client.platform||platformName();$('clientCount').textContent=`${d.activeClients} / ${d.maxClients} clients`;return true;
+    }catch(e){$('connectionStatus').textContent='Host disconnected';$('statusDot').classList.add('offline');return false;}
   }
-
-  async function loadHostInfo() {
-    try {
-      const response = await fetch('/api/info', { cache: 'no-store' });
-      if (!response.ok) throw new Error(`Server returned ${response.status}`);
-      const info = await response.json();
-      state.hostInfo = info;
-      $('hostName').textContent = info.hostname || 'Host PC';
-      $('hostAddress').textContent = `This server · Port ${info.port} · ${info.addresses.join(', ') || 'Host address unavailable'}`;
-      $('appVersion').textContent = `v${info.version}`;
-      $('connectionStatus').textContent = 'Connected to host';
-      return true;
-    } catch (error) {
-      $('connectionStatus').textContent = 'Host connection issue';
-      $('hostName').textContent = 'Could not reach the host server';
-      $('hostAddress').textContent = error.message;
-      $('hostName').style.color = '#f1b75a';
-      return false;
-    }
+  function startHeartbeat(){heartbeat();state.heartbeatTimer=setInterval(heartbeat,9000);}
+  function disconnect(){try{const payload=JSON.stringify({clientId:state.clientId});navigator.sendBeacon('/api/client/disconnect',new Blob([payload],{type:'application/json'}));}catch(_){}}
+  async function measureLatency(){const vals=[];for(let i=0;i<18&&!state.cancel;i++){const t=performance.now();const r=await fetch(`/api/ping?seq=${i}&t=${Date.now()}`,{cache:'no-store'});if(!r.ok)throw new Error('Latency probe failed');vals.push(performance.now()-t);updateProgress((i+1)/18*10,'Measuring HTTP round-trip latency…');}
+    if(!vals.length)return {median:NaN,min:NaN,max:NaN,jitter:NaN};const sorted=[...vals].sort((a,b)=>a-b),mid=Math.floor(sorted.length/2),median=sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;const jitter=vals.slice(1).reduce((s,v,i)=>s+Math.abs(v-vals[i]),0)/Math.max(1,vals.length-1);return {median,min:sorted[0],max:sorted[sorted.length-1],jitter};}
+  function makeUploadBlob(){const b=new Uint8Array(4*1024*1024);for(let i=0;i<b.length;i++)b[i]=(i*37+19)&255;return new Blob([b],{type:'application/octet-stream'});}
+  async function transfer(direction,seconds,streams,base,span){
+    const start=performance.now(),deadline=start+seconds*1000,blob=direction==='upload'?makeUploadBlob():null;let bytes=0,lastBytes=0,lastSample=start,min=Infinity,peak=0;const sampleRates=[];let aborters=[];
+    const tick=setInterval(()=>{const now=performance.now(),dt=(now-lastSample)/1000,rate=dt>0?(bytes-lastBytes)*8/dt/1e6:0;if(dt>=.16){sampleRates.push(rate);min=Math.min(min,rate);peak=Math.max(peak,rate);pushSample(direction,rate);lastSample=now;lastBytes=bytes;}const pct=Math.min(100,(now-start)/(seconds*1000)*100);updateProgress(base+pct*span/100,`${direction==='download'?'Downloading':'Uploading'} · ${streams} parallel stream${streams===1?'':'s'}…`);},180);
+    const downloadWorker=async()=>{const controller=new AbortController();const stop=()=>controller.abort();aborters.push(stop);state.stopFns.push(stop);const deadlineTimer=setTimeout(stop,Math.max(1,deadline-performance.now()));try{const r=await fetch(`/api/download?ts=${Date.now()}-${Math.random()}`,{cache:'no-store',signal:controller.signal,headers:{'X-Speed-Test-Client':state.clientId}});if(!r.ok||!r.body)throw new Error(`Download stream failed (HTTP ${r.status})`);const reader=r.body.getReader();while(performance.now()<deadline&&!state.cancel){const x=await reader.read();if(x.done)break;bytes+=x.value.byteLength;}}catch(e){if(!controller.signal.aborted&&!state.cancel)throw e;}finally{clearTimeout(deadlineTimer);controller.abort();state.stopFns=state.stopFns.filter(fn=>fn!==stop);}};
+    const uploadWorker=async()=>{while(performance.now()<deadline&&!state.cancel){await new Promise((resolve,reject)=>{const xhr=new XMLHttpRequest();let settled=false,seen=0;const remain=Math.max(1,deadline-performance.now());const timer=setTimeout(()=>xhr.abort(),remain);const stop=()=>xhr.abort();aborters.push(stop);state.stopFns.push(stop);const finish=(ok,err)=>{if(settled)return;settled=true;clearTimeout(timer);state.stopFns=state.stopFns.filter(fn=>fn!==stop);if(ok)resolve();else reject(err||new Error('Upload failed'));};xhr.open('POST',`/api/upload?ts=${Date.now()}-${Math.random()}`,true);xhr.setRequestHeader('X-Speed-Test-Client',state.clientId);xhr.upload.onprogress=e=>{if(e.lengthComputable){const delta=Math.max(0,e.loaded-seen);bytes+=delta;seen=e.loaded;}};xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300){if(seen<blob.size)bytes+=blob.size-seen;finish(true);}else finish(false,new Error(`Upload failed (HTTP ${xhr.status})`));};xhr.onerror=()=>finish(false,new Error('Upload connection failed'));xhr.onabort=()=>finish(true);xhr.send(blob);});}};
+    try{const workers=Array.from({length:streams},()=>direction==='download'?downloadWorker():uploadWorker());await Promise.all(workers);}finally{clearInterval(tick);aborters.forEach(fn=>{try{fn();}catch(_){}});}
+    const elapsed=Math.min(seconds,Math.max(.001,(performance.now()-start)/1000)),average=bytes*8/elapsed/1e6;return {average,bytes,seconds:elapsed,min:Number.isFinite(min)?min:average,peak:Math.max(peak,average),samples:sampleRates};
   }
-
-  async function measureLatency() {
-    const values = [];
-    const count = 10;
-    for (let i = 0; i < count; i++) {
-      if (state.cancel) break;
-      const started = performance.now();
-      await fetch(`/api/ping?n=${i}&t=${Date.now()}`, { cache: 'no-store' });
-      values.push(performance.now() - started);
-      $('progressFill').style.width = `${(i + 1) / count * 8}%`;
-      $('progressLabel').textContent = `${Math.round((i + 1) / count * 8)}%`;
-    }
-    if (!values.length) return { latency: NaN, jitter: NaN };
-    const sorted = [...values].sort((a, b) => a - b);
-    const median = sorted.length % 2 ? sorted[(sorted.length - 1) / 2] : (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2;
-    const deltas = values.slice(1).map((v, i) => Math.abs(v - values[i]));
-    const jitter = deltas.length ? deltas.reduce((a, b) => a + b, 0) / deltas.length : 0;
-    return { latency: median, jitter };
-  }
-
-  async function measureDownload(seconds, progressBase, progressSpan) {
-    const controller = new AbortController();
-    const start = performance.now();
-    let bytes = 0;
-    let lastSampleTime = start;
-    let lastSampleBytes = 0;
-    const abortTimer = setTimeout(() => controller.abort(), seconds * 1000);
-    state.stopCurrent = () => controller.abort();
-    try {
-      const response = await fetch(`/api/download?run=${Date.now()}`, { cache: 'no-store', signal: controller.signal });
-      if (!response.ok || !response.body) throw new Error('Download stream could not be opened.');
-      const reader = response.body.getReader();
-      while (!state.cancel) {
-        const chunk = await reader.read();
-        if (chunk.done) break;
-        bytes += chunk.value.byteLength;
-        const now = performance.now();
-        if (now - lastSampleTime >= 180) {
-          const instant = (bytes - lastSampleBytes) * 8 / ((now - lastSampleTime) / 1000) / 1000000;
-          addSample(instant);
-          lastSampleTime = now;
-          lastSampleBytes = bytes;
-        }
-        const elapsed = now - start;
-        const pct = Math.min(100, elapsed / (seconds * 1000) * 100);
-        $('progressFill').style.width = `${progressBase + pct * progressSpan / 100}%`;
-        $('progressLabel').textContent = `${Math.round(progressBase + pct * progressSpan / 100)}%`;
-      }
-    } catch (error) {
-      if (!controller.signal.aborted && !state.cancel) throw error;
-    } finally {
-      clearTimeout(abortTimer);
-      state.stopCurrent = null;
-      controller.abort();
-    }
-    const elapsed = (performance.now() - start) / 1000;
-    return { mbps: elapsed > 0 ? bytes * 8 / elapsed / 1000000 : 0, bytes, seconds: elapsed };
-  }
-
-  function makeUploadBlob() {
-    const chunk = new Uint8Array(1024 * 1024);
-    // Deterministic non-zero bytes avoid a trivially compressible all-zero payload.
-    for (let i = 0; i < chunk.length; i++) chunk[i] = (i * 37 + 19) & 255;
-    const parts = Array.from({ length: 64 }, () => chunk);
-    return new Blob(parts, { type: 'application/octet-stream' });
-  }
-
-  async function measureUpload(seconds, progressBase, progressSpan) {
-    const blob = makeUploadBlob();
-    const start = performance.now();
-    const deadline = start + seconds * 1000;
-    let totalBytes = 0;
-    let lastSampleTime = start;
-    let lastSampleBytes = 0;
-
-    while (!state.cancel && performance.now() < deadline) {
-      const remaining = deadline - performance.now();
-      let currentLoaded = 0;
-      const result = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        let settled = false;
-        const timer = setTimeout(() => xhr.abort(), Math.max(1, remaining));
-        const finish = (value) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          state.stopCurrent = null;
-          resolve(value);
-        };
-        state.stopCurrent = () => xhr.abort();
-        const fail = (error) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timer);
-          state.stopCurrent = null;
-          reject(error);
-        };
-        xhr.open('POST', `/api/upload?run=${Date.now()}`, true);
-        xhr.upload.onprogress = (event) => {
-          const loaded = Math.min(event.loaded, blob.size);
-          totalBytes += Math.max(0, loaded - currentLoaded);
-          currentLoaded = loaded;
-          const now = performance.now();
-          if (now - lastSampleTime >= 180) {
-            const instant = (totalBytes - lastSampleBytes) * 8 / ((now - lastSampleTime) / 1000) / 1000000;
-            addSample(instant);
-            lastSampleTime = now;
-            lastSampleBytes = totalBytes;
-          }
-          const pct = Math.min(100, (now - start) / (seconds * 1000) * 100);
-          $('progressFill').style.width = `${progressBase + pct * progressSpan / 100}%`;
-          $('progressLabel').textContent = `${Math.round(progressBase + pct * progressSpan / 100)}%`;
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            totalBytes += Math.max(0, blob.size - currentLoaded);
-            finish({ complete: true });
-          } else {
-            reject(new Error(`Upload failed: HTTP ${xhr.status}`));
-          }
-        };
-        xhr.onerror = () => fail(new Error('Upload connection failed.'));
-        xhr.onabort = () => finish({ complete: false });
-        xhr.send(blob);
-      });
-      if (!result.complete) break;
-    }
-    const elapsed = (performance.now() - start) / 1000;
-    return { mbps: elapsed > 0 ? totalBytes * 8 / elapsed / 1000000 : 0, bytes: totalBytes, seconds: elapsed };
-  }
-
-  function setStage(text, caption) {
-    $('stageLabel').textContent = text;
-    $('gaugeCaption').textContent = caption;
-  }
-
-  function downloadReport(format) {
-    if (!state.lastResults) return;
-    const result = state.lastResults;
-    let content, type, extension;
-    if (format === 'csv') {
-      const fields = Object.keys(result);
-      const quote = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
-      content = [fields.map(quote).join(','), fields.map(key => quote(result[key])).join(',')].join('\r\n');
-      type = 'text/csv;charset=utf-8'; extension = 'csv';
-    } else {
-      content = JSON.stringify(result, null, 2);
-      type = 'application/json'; extension = 'json';
-    }
-    const blob = new Blob([content], { type });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Speed-Test-Report-${new Date(result.timestamp).toISOString().replaceAll(':', '-').replaceAll('.', '-')}.${extension}`;
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1500);
-  }
-
-  async function saveHostResult(result) {
-    try {
-      const response = await fetch('/api/results', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          durationSeconds: result.durationSeconds,
-          downloadMbps: result.downloadMbps,
-          uploadMbps: result.uploadMbps,
-          latencyMs: result.latencyMs,
-          jitterMs: result.jitterMs,
-          downloadBytes: result.downloadBytes,
-          uploadBytes: result.uploadBytes,
-          clientVersion: result.version
-        })
-      });
-      if (!response.ok) throw new Error(`Host log save failed (${response.status})`);
-      const saved = await response.json();
-      result.testId = saved.testId;
-      result.hostLogSaved = true;
-    } catch (error) {
-      result.hostLogSaved = false;
-      console.warn('Could not save result to host log:', error);
-    }
-    state.lastResults = result;
-    $('reportActions').hidden = false;
-    $('resultTime').textContent = result.hostLogSaved
-      ? `Saved on host · Test ID ${result.testId}`
-      : `Completed ${new Date(result.timestamp).toLocaleString()} · Host log unavailable; download a local report.`;
-  }
-
-  async function checkForUpdates() {
-    try {
-      const response = await fetch('/api/update', { cache: 'no-store' });
-      if (!response.ok) return;
-      const update = await response.json();
-      if (update.updateAvailable && update.latestVersion) {
-        const banner = $('updateBanner');
-        banner.hidden = false;
-        const text = document.createElement('span');
-        text.textContent = `Speed Test ${update.latestVersion} is available (you are using ${update.currentVersion}). Ask the host administrator to restart the official launcher to update. `;
-        const link = document.createElement('a');
-        link.href = update.releaseUrl || 'https://github.com/ajayraikvar/speed-test/releases/latest';
-        link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = 'Release information';
-        banner.replaceChildren(text, link);
-      }
-    } catch (_) { /* Offline hosts continue normally; update checking is optional. */ }
-  }
-
-  function setResults(download, upload, latency, jitter) {
-    $('downloadResult').textContent = formatSpeed(download);
-    $('downloadMBps').textContent = `${formatMBps(download)} · Host → Browser`;
-    $('uploadResult').textContent = formatSpeed(upload);
-    $('uploadMBps').textContent = `${formatMBps(upload)} · Browser → Host`;
-    $('latencyResult').innerHTML = `${Number.isFinite(latency) ? latency.toFixed(1) : '—'} <small>ms</small>`;
-    $('jitterResult').innerHTML = `${Number.isFinite(jitter) ? jitter.toFixed(1) : '—'} <small>ms</small>`;
-    $('resultTime').textContent = `Completed ${new Date().toLocaleString()}`;
-  }
-
-  async function runTest() {
-    if (state.running) return;
-    const hostOK = await loadHostInfo();
-    if (!hostOK) { showToast('The host server is not responding.'); return; }
-
-    state.running = true;
-    state.cancel = false;
-    state.chart = [];
-    state.maxSpeed = 1;
-    drawChart();
-    $('startButton').disabled = true;
-    $('stopButton').disabled = false;
-    $('downloadResult').textContent = '—';
-    $('uploadResult').textContent = '—';
-    $('latencyResult').innerHTML = '— <small>ms</small>';
-    $('jitterResult').innerHTML = '— <small>ms</small>';
-    $('reportActions').hidden = true;
-    state.lastResults = null;
-    $('progressFill').style.width = '0%';
-    $('progressLabel').textContent = '0%';
-    const duration = Number($('durationSelect').value);
-    let latency = NaN, jitter = NaN, download = { mbps: 0, bytes: 0, seconds: 0 }, upload = { mbps: 0, bytes: 0, seconds: 0 };
-
-    try {
-      setStage('Measuring response time…', 'LATENCY CHECK');
-      const ping = await measureLatency();
-      latency = ping.latency; jitter = ping.jitter;
-      if (state.cancel) throw new Error('Test stopped.');
-
-      setStage('Testing host to browser…', 'DOWNLOAD TEST');
-      $('liveDirection').textContent = 'Host → Browser';
-      download = await measureDownload(duration, 8, 46);
-      if (state.cancel) throw new Error('Test stopped.');
-
-      setStage('Testing browser to host…', 'UPLOAD TEST');
-      $('liveDirection').textContent = 'Browser → Host';
-      upload = await measureUpload(duration, 54, 46);
-      if (state.cancel) throw new Error('Test stopped.');
-
-      setResults(download.mbps, upload.mbps, latency, jitter);
-      const report = {
-        product: 'Speed Test', version: state.hostInfo?.version || 'unknown',
-        timestamp: new Date().toISOString(), durationSeconds: duration,
-        downloadMbps: Number(download.mbps.toFixed(3)), uploadMbps: Number(upload.mbps.toFixed(3)),
-        latencyMs: Number(latency.toFixed(3)), jitterMs: Number(jitter.toFixed(3)),
-        downloadBytes: download.bytes, uploadBytes: upload.bytes,
-        host: state.hostInfo?.hostname || 'unknown',
-        hostAddresses: (state.hostInfo?.addresses || []).join('; '),
-        userAgent: navigator.userAgent, testId: null, hostLogSaved: false
-      };
-      await saveHostResult(report);
-      setStage('Test completed', 'TEST COMPLETE');
-      $('progressFill').style.width = '100%';
-      $('progressLabel').textContent = '100%';
-      setSpeed(Math.max(download.mbps, upload.mbps), 'Peak measured throughput');
-      showToast('Speed test completed.');
-    } catch (error) {
-      setStage(state.cancel ? 'Test stopped' : 'Test could not complete', state.cancel ? 'STOPPED' : 'TEST ERROR');
-      showToast(error.message || 'The speed test failed.');
-      if (!state.cancel) console.error(error);
-    } finally {
-      state.running = false;
-      $('startButton').disabled = false;
-      $('stopButton').disabled = true;
-      if (state.cancel) {
-        $('liveSpeed').textContent = '—';
-        $('liveUnit').textContent = 'Mbps';
-      }
-    }
-  }
-
-  $('startButton').addEventListener('click', runTest);
-  $('downloadJsonReport').addEventListener('click', () => downloadReport('json'));
-  $('downloadCsvReport').addEventListener('click', () => downloadReport('csv'));
-  $('stopButton').addEventListener('click', () => { state.cancel = true; if (state.stopCurrent) state.stopCurrent(); setStage('Stopping test…', 'STOPPING'); });
-  window.addEventListener('resize', drawChart);
-  drawChart();
-  loadHostInfo();
-  checkForUpdates();
-  setInterval(checkForUpdates, 5 * 60 * 1000);
+  function makeReport(d,u,latency,duration,streams,mode){return {product:'Speed Test',version:state.hostInfo?.version||'2.0.0',timestamp:new Date().toISOString(),testScope:identifyScope(state.session?.clientIp||''),clientId:state.clientId,clientName:currentClientName(),clientIp:state.session?.clientIp||'',host:state.hostInfo?.hostname||'unknown',hostAddresses:(state.hostInfo?.addresses||[]).join('; '),browser:browserName(),platform:platformName(),connectionType:networkType(),durationSeconds:duration,streams,mode,downloadMbps:Number(d.average.toFixed(3)),uploadMbps:Number(u.average.toFixed(3)),downloadMinMbps:Number(d.min.toFixed(3)),downloadPeakMbps:Number(d.peak.toFixed(3)),uploadMinMbps:Number(u.min.toFixed(3)),uploadPeakMbps:Number(u.peak.toFixed(3)),latencyMs:Number(latency.median.toFixed(3)),latencyMinMs:Number(latency.min.toFixed(3)),latencyMaxMs:Number(latency.max.toFixed(3)),jitterMs:Number(latency.jitter.toFixed(3)),downloadBytes:d.bytes,uploadBytes:u.bytes,testId:null,hostLogSaved:false};}
+  async function saveHostResult(report){const payload={...report};try{const r=await fetch('/api/results',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!r.ok)throw new Error(`Host log returned ${r.status}`);const x=await r.json();report.testId=x.testId;report.hostLogSaved=true;}catch(e){report.hostLogSaved=false;console.warn(e);}
+    state.lastResults=report;$('reportActions').hidden=false;$('resultTime').textContent=report.hostLogSaved?`Saved on host · Test ID ${report.testId}`:'Host log unavailable · report remains available in this browser';saveRecent(report);}
+  function showResults(d,u,l){let a=mbpsToRate(d.average),b=mbpsToRate(u.average);$('downloadResult').textContent=a.value;$('downloadUnit').textContent=a.unit;$('uploadResult').textContent=b.value;$('uploadUnit').textContent=b.unit;$('downloadMBps').textContent=`${mbpsToMBps(d.average)} · Min ${mbpsToRate(d.min).value} ${mbpsToRate(d.min).unit} · Host → Browser`;$('uploadMBps').textContent=`${mbpsToMBps(u.average)} · Min ${mbpsToRate(u.min).value} ${mbpsToRate(u.min).unit} · Browser → Host`;const dp=mbpsToRate(d.peak),up=mbpsToRate(u.peak);$('downloadPeak').textContent=`${dp.value} ${dp.unit}`;$('uploadPeak').textContent=`${up.value} ${up.unit}`;$('latencyResult').innerHTML=`${fmt(l.median)} <small>ms</small>`;$('latencyRange').textContent=`Min ${fmt(l.min)} · Max ${fmt(l.max)} ms`;$('jitterResult').innerHTML=`${fmt(l.jitter)} <small>ms</small>`;}
+  function downloadReport(format){if(!state.lastResults)return;const r=state.lastResults;let content,type,ext;if(format==='csv'){const keys=Object.keys(r);const q=v=>`"${String(v??'').replaceAll('"','""')}"`;content=[keys.map(q).join(','),keys.map(k=>q(r[k])).join(',')].join('\r\n');type='text/csv;charset=utf-8';ext='csv';}else{content=JSON.stringify(r,null,2);type='application/json';ext='json';}const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`Speed-Test-v2-Report-${new Date(r.timestamp).toISOString().replaceAll(':','-')}.${ext}`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);}
+  function saveRecent(r){let list=[];try{list=JSON.parse(localStorage.getItem('st2-recent')||'[]');}catch(_){}list.unshift(r);list=list.slice(0,8);localStorage.setItem('st2-recent',JSON.stringify(list));renderRecent();}
+  function renderRecent(){let list=[];try{list=JSON.parse(localStorage.getItem('st2-recent')||'[]');}catch(_){}const root=$('recentTests');root.replaceChildren();if(!list.length){root.textContent='Completed tests will appear here.';root.classList.add('empty-state');return;}root.classList.remove('empty-state');list.forEach(item=>{const row=document.createElement('div');row.className='recent-row';const info=document.createElement('span');const dl=mbpsToRate(Number(item.downloadMbps)),ul=mbpsToRate(Number(item.uploadMbps));info.textContent=`${new Date(item.timestamp).toLocaleString()} · ↓ ${dl.value} ${dl.unit} · ↑ ${ul.value} ${ul.unit}`;const btn=document.createElement('button');btn.textContent='Download JSON';btn.addEventListener('click',()=>{const blob=new Blob([JSON.stringify(item,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`Speed-Test-${item.testId||'local'}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);});row.append(info,btn);root.append(row);});}
+  async function checkForUpdates(){try{const r=await fetch('/api/update',{cache:'no-store'});if(!r.ok)return;const d=await r.json();if(d.updateAvailable&&d.latestVersion){const box=$('updateBanner');box.hidden=false;const span=document.createElement('span');span.textContent=`Speed Test ${d.latestVersion} is available. This host is running ${d.currentVersion}; ask the host administrator to restart the launcher. `;const link=document.createElement('a');link.href=d.releaseUrl||'https://github.com/ajayraikvar/speed-test/releases/latest';link.target='_blank';link.rel='noopener noreferrer';link.textContent='Release details';box.replaceChildren(span,link);}}catch(_){}}
+  async function runTest(){if(state.running)return;if(!state.session){showToast('Waiting for a host client slot.');return;}state.running=true;state.cancel=false;state.chart=[];state.maxSpeed=1;drawChart();$('startButton').disabled=true;$('stopButton').disabled=false;$('reportActions').hidden=true;state.lastResults=null;updateProgress(0,'Preparing network test…');['downloadResult','uploadResult','downloadPeak','uploadPeak'].forEach(id=>$(id).textContent='—');
+    const duration=Number($('durationSelect').value),streams=Number($('streamSelect').value),mode=$('modeSelect').value;$('streamsUsed').textContent=String(streams);$('modeUsed').textContent=mode==='bidirectional'?'Bidirectional':'Sequential';let d={average:0,min:0,peak:0,bytes:0},u={...d};
+    try{const latency=await measureLatency();if(state.cancel)throw new Error('Test stopped by user.');if(mode==='bidirectional'){
+        const [down,up]=await Promise.all([transfer('download',duration,streams,10,90),transfer('upload',duration,streams,10,90)]);d=down;u=up;
+      }else{d=await transfer('download',duration,streams,10,45);if(state.cancel)throw new Error('Test stopped by user.');u=await transfer('upload',duration,streams,55,45);}
+      if(state.cancel)throw new Error('Test stopped by user.');showResults(d,u,latency);const report=makeReport(d,u,latency,duration,streams,mode);await saveHostResult(report);$('gaugeCaption').textContent='TEST COMPLETE';const peak=Math.max(d.peak,u.peak),rate=mbpsToRate(peak);$('liveSpeed').textContent=rate.value;$('liveUnit').textContent=rate.unit;$('liveDirection').textContent='Peak measured throughput';$('stageLabel').textContent='Test completed';updateProgress(100);showToast('Speed test completed and report saved.');
+    }catch(e){$('gaugeCaption').textContent=state.cancel?'STOPPED':'TEST ERROR';$('stageLabel').textContent=state.cancel?'Test stopped':'Test could not complete';showToast(e.message||'Speed test failed.');if(!state.cancel)console.error(e);}finally{state.running=false;$('startButton').disabled=!state.session;$('stopButton').disabled=true;state.stopFns.forEach(fn=>{try{fn();}catch(_){}});state.stopFns=[];}}
+  $('startButton').addEventListener('click',runTest);$('stopButton').addEventListener('click',()=>{state.cancel=true;state.stopFns.forEach(fn=>{try{fn();}catch(_){}});$('stageLabel').textContent='Stopping test…';$('gaugeCaption').textContent='STOPPING';});
+  $('downloadJsonReport').addEventListener('click',()=>downloadReport('json'));$('downloadCsvReport').addEventListener('click',()=>downloadReport('csv'));$('printReport').addEventListener('click',()=>window.print());$('clientName').value=localStorage.getItem('st2-client-name')||'';$('clientName').addEventListener('change',()=>{localStorage.setItem('st2-client-name',$('clientName').value.trim());heartbeat();});window.addEventListener('resize',drawChart);window.addEventListener('beforeunload',disconnect);
+  drawChart();renderRecent();loadHostInfo().then(ok=>{if(ok){startHeartbeat();checkForUpdates();state.updateTimer=setInterval(checkForUpdates,60000);}});
 })();

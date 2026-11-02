@@ -1,3 +1,3 @@
 module github.com/ajayraikvar/speed-test
 
-go 1.21
+go 1.23

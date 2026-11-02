@@ -1,15 +1,6 @@
 # Contributing
 
-Thank you for considering a contribution to Speed Test.
-
-## Before submitting
-
-- Open an issue for significant changes so the design can be discussed first.
-- Keep the server dependency-free where practical; the current Go application uses only the standard library.
-- Never add telemetry to third-party services, remote analytics, tracking pixels, or external CDNs.
-- Keep host logs local and protect administrative log access.
-- Add or update tests for server behaviour and input validation.
-- Clearly mark material changes in the changelog and UI where appropriate.
+Contributions are welcome. Open an issue before large changes so the scope and compatibility impact can be discussed.
 
 ## Development checks
 
@@ -17,10 +8,15 @@ Thank you for considering a contribution to Speed Test.
 go test ./...
 go vet ./...
 go test -race ./...
+node --check web/app.js
+node --check web/admin.js
 ```
 
-## Attribution and licensing
+## Expectations
 
-By submitting a contribution, you confirm that you have the right to submit it and agree that it may be distributed as part of Speed Test under AGPL-3.0-or-later. You retain copyright in your contribution unless you separately agree otherwise. Existing Ajay Raikvar copyright, author, website, and upstream project notices must remain intact. Add your name to the contributor credits when the contribution is accepted.
-
-Do not submit secrets, personal data, private logs, or files from an employer/client environment.
+- Keep the host self-contained and use the Go standard library unless a dependency is clearly justified.
+- Preserve copyright, license, warranty disclaimer, and attribution notices.
+- Clearly identify modified versions; do not imply unofficial builds are official upstream releases.
+- Add server tests for new endpoints and browser tests/checks for new client behaviour.
+- Do not commit real host logs, local settings, credentials, or generated test payloads.
+- Contributions are distributed under AGPL-3.0-or-later as part of this project; contributors retain their own copyright unless they separately agree otherwise.
