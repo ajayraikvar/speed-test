@@ -1,0 +1,111 @@
+name: Publish Speed Test v2.0.0
+
+on:
+  push:
+    branches: [release/v2.0.0]
+    paths:
+      - 'release-staging/Speed-Test-v2.0.0-Source.base64.txt'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: speed-test-v2-0-0-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event.head_commit.message == 'Stage Speed Test v2.0.0 source bundle'
+    runs-on: windows-latest
+    steps:
+      - name: Check out release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/v2.0.0
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: true
+
+      - name: Restore and verify v2.0.0 source
+        shell: pwsh
+        run: |
+          $bundlePath = Join-Path $PWD 'release-staging/Speed-Test-v2.0.0-Source.base64.txt'
+          $encoded = [regex]::Replace([System.IO.File]::ReadAllText($bundlePath), '\s', '')
+          $archiveBytes = [Convert]::FromBase64String($encoded)
+          $sha = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash($archiveBytes)).Replace('-', '').ToLowerInvariant()
+          if ($sha -ne 'df224625842db4367536b4438649a5faf3f15d3e39ddcce2d4e0d4b95bf3e9bd') { throw "v2.0.0 source archive SHA256 mismatch: $sha" }
+          $archivePath = Join-Path $env:RUNNER_TEMP 'Speed-Test-v2.0.0-Source.zip'
+          [System.IO.File]::WriteAllBytes($archivePath, $archiveBytes)
+          $extractRoot = Join-Path $env:RUNNER_TEMP 'speed-test-v2-source'
+          Expand-Archive -LiteralPath $archivePath -DestinationPath $extractRoot -Force
+          $sourceRoot = Join-Path $extractRoot 'Speed-Test-v2.0.0'
+          if (-not (Test-Path -LiteralPath (Join-Path $sourceRoot 'main.go') -PathType Leaf)) { throw 'The v2.0.0 archive is missing main.go.' }
+          Get-ChildItem -LiteralPath $sourceRoot -Force | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $PWD -Recurse -Force }
+          Remove-Item -LiteralPath $bundlePath -Force
+
+      - name: Run source checks
+        shell: pwsh
+        run: |
+          go test ./...
+          if ($LASTEXITCODE -ne 0) { throw 'Go unit tests failed.' }
+          go vet ./...
+          if ($LASTEXITCODE -ne 0) { throw 'go vet failed.' }
+          $env:GOOS = 'linux'
+          $env:GOARCH = 'amd64'
+          go test -race ./...
+          if ($LASTEXITCODE -ne 0) { throw 'Go race detector failed.' }
+          Remove-Item Env:GOOS -ErrorAction SilentlyContinue
+          Remove-Item Env:GOARCH -ErrorAction SilentlyContinue
+          node --check web/app.js
+          if ($LASTEXITCODE -ne 0) { throw 'web/app.js syntax check failed.' }
+          node --check web/admin.js
+          if ($LASTEXITCODE -ne 0) { throw 'web/admin.js syntax check failed.' }
+
+      - name: Commit v2.0.0 source tree to release branch
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'Publish Speed Test v2.0.0 source'
+          git push origin HEAD:release/v2.0.0
+
+      - name: Build release packages
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/build-package.ps1 -Version 2.0.0
+          if ($LASTEXITCODE -ne 0) { throw 'Release package build failed.' }
+
+      - name: Publish GitHub Release v2.0.0
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v2.0.0
+          target_commitish: release/v2.0.0
+          name: Speed Test v2.0.0
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            Speed Test v2.0.0 by Ajay Raikvar.
+
+            **Windows x64:** download `Speed-Test-Windows-x64.zip`, extract it, and run `Start-Speed-Test.bat`. Other devices on the LAN can connect through a modern browser.
+
+            **Source:** `Speed-Test-v2.0.0-Source.zip` contains the complete source tree.
+
+            **Integrity:** verify both ZIP packages using `SHA256SUMS.txt`.
+
+            **Validation:** Go tests, vet, race detector and browser JavaScript syntax checks run before packaging. Windows x64 binary packaging is performed on a Windows GitHub Actions runner. A separate physical Windows-to-Windows LAN test remains subject to user validation.
+
+            **Measurement limits:** throughput and latency are measured over HTTP/TCP; this is not raw ICMP ping or UDP packet-loss measurement. It is not a calibrated network certification instrument.
+
+            © 2026 Ajay Raikvar — https://www.ajayraikvar.com
+          files: |
+            dist/v2.0.0/Speed-Test-Windows-x64.zip
+            dist/v2.0.0/Speed-Test-v2.0.0-Source.zip
+            dist/v2.0.0/SHA256SUMS.txt
